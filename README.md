@@ -8,7 +8,7 @@
 
 **An AI-powered cloud operations monitoring and management platform for Oracle Cloud Infrastructure (OCI)**
 
-[View Dashboard](./dashboard.html) • [Documentation](#documentation) • [Contributing](#contributing) • [Support](#support)
+[View Dashboard](./index.html) • [Documentation](#documentation) • [Contributing](#contributing) • [Support](#support)
 
 </div>
 
