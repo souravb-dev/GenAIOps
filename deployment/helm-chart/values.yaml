@@ -1,0 +1,83 @@
+# Default values for genai-cloudops
+replicaCount: 1
+
+frontend:
+  image:
+    repository: ghcr.io/your-org/genai-cloudops-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+backend:
+  image:
+    repository: ghcr.io/your-org/genai-cloudops-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 1
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:password@postgres:5432/genai_cloudops"
+    - name: ENVIRONMENT
+      value: "production"
+    - name: DEBUG
+      value: "false"
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    enabled: true
+    size: 10Gi
+  env:
+    - name: POSTGRES_DB
+      value: "genai_cloudops"
+    - name: POSTGRES_USER
+      value: "postgres"
+    - name: POSTGRES_PASSWORD
+      value: "password"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: genai-cloudops.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+        - path: /api
+          pathType: Prefix
+          service: backend
+  tls: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {} 
