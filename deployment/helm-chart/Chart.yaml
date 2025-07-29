@@ -1,0 +1,14 @@
+apiVersion: v2
+name: genai-cloudops
+description: A Helm chart for GenAI CloudOps Platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - genai
+  - cloudops
+  - platform
+maintainers:
+  - name: GenAI CloudOps Team
+sources:
+  - https://github.com/your-org/genai-cloudops 
