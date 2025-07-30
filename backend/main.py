@@ -51,7 +51,8 @@ Built using a modular microservices architecture with:
 
 ### API Endpoints
 
-All endpoints are available under `/api/v1/` prefix with comprehensive OpenAPI documentation.
+All endpoints are available under `/api/v1/` prefix with comprehensive 
+OpenAPI documentation.
     """,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -122,8 +123,8 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_override_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
-@app.on_event("startup")
-async def startup_event():
+@app.on_event("startup")  # TODO: Migrate to lifespan in FastAPI 0.116+
+async def startup_event() -> None:
     """Initialize database and default data on startup"""
     try:
         # Create all database tables
@@ -140,7 +141,8 @@ async def startup_event():
         print("API Gateway health checks started")
         
         print("✅ GenAI CloudOps API started successfully")
-        print("📊 Features enabled: Authentication, RBAC, Rate Limiting, Monitoring, API Gateway")
+        print("📊 Features enabled: Authentication, RBAC, Rate Limiting, "
+              "Monitoring, API Gateway")
         
     except Exception as e:
         print(f"❌ Error during startup: {e}")
@@ -149,7 +151,7 @@ async def startup_event():
 app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     return {
         "message": "Welcome to GenAI CloudOps API", 
         "version": "1.0.0",
@@ -158,7 +160,7 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
     return {"status": "healthy", "service": "GenAI CloudOps API"}
 
 if __name__ == "__main__":
