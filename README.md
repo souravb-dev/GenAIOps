@@ -8,7 +8,7 @@
 
 **An AI-powered cloud operations monitoring and management platform for Oracle Cloud Infrastructure (OCI)**
 
-[View Dashboard](./index.html) • [Documentation](#documentation) • [Contributing](#contributing) • [Support](#support)
+[🚀 View Live Dashboard](https://souravb-dev.github.io/GenAIOps/) • [📊 Project Status](https://souravb-dev.github.io/GenAIOps/taskmaster/dashboard.html) • [Documentation](#documentation) • [Contributing](#contributing)
 
 </div>
 
@@ -243,8 +243,9 @@ Before you begin, ensure you have the following installed:
 
 2. **View the current project status**
    ```bash
-   # Open the dashboard to see current progress
-   open dashboard.html
+   # Visit the live dashboard to see current progress
+   # 🚀 Live Dashboard: https://souravb-dev.github.io/GenAIOps/
+   # 📊 Task Status: https://souravb-dev.github.io/GenAIOps/taskmaster/dashboard.html
    ```
 
 3. **Set up development environment** (when Task-001 is completed)
@@ -779,14 +780,16 @@ kubectl cluster-info
 |-----------|--------|----------|
 | Project Planning | ✅ Complete | 100% |
 | Architecture Design | ✅ Complete | 100% |
-| Development Setup | ⏳ Pending | 0% |
-| Frontend Development | ⏳ Pending | 0% |
-| Backend Development | ⏳ Pending | 0% |
+| Development Setup | ✅ Complete | 100% |
+| Authentication & RBAC | ✅ Complete | 100% |
+| Backend Infrastructure | ✅ Complete | 100% |
+| OCI SDK Integration | ✅ Complete | 100% |
+| Frontend Development | ⏳ In Progress | 0% |
 | AI Integration | ⏳ Pending | 0% |
 | Testing | ⏳ Pending | 0% |
 | Deployment | ⏳ Pending | 0% |
 
-**Overall Progress: 3.3%** | **Next Milestone: Development Environment Setup**
+**Overall Progress: 15%** | **Next Milestone: Frontend Application Shell**
 
 ---
 
