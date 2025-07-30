@@ -4,7 +4,7 @@
 Develop the authentication system with basic RBAC (Admin, Viewer, Operator roles) and optional OCI IAM integration. This includes user login, session management, and role-based access control throughout the application.
 
 **Priority:** Critical  
-**Status:** To Do  
+**Status:** ✅ Completed  
 **Assigned To:** Unassigned  
 **Dependencies:** Setup Project Structure and Development Environment
 
