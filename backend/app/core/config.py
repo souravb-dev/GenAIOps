@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     ]
     
     # Database Settings
-    DATABASE_URL: str = "postgresql://user:password@localhost/genai_cloudops"
+    DATABASE_URL: str = "sqlite:///./genai_cloudops.db"
     
     # Security Settings
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
