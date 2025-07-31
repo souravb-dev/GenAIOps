@@ -1,134 +1,347 @@
-from fastapi import APIRouter, Depends, status
-from typing import Dict, Any
-from datetime import datetime
-import psutil
-import sys
-from app.core.middleware import get_monitoring_metrics
-from app.core.database import get_db, engine
-from app.core.security import verify_token
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from typing import Dict, List, Any, Optional
+from datetime import datetime, timedelta
+import logging
+
+from app.core.permissions import require_permissions
+from app.models.user import User
+from app.services.monitoring_service import monitoring_service
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.get("/metrics")
-async def get_application_metrics() -> Dict[str, Any]:
-    """Get application performance metrics"""
-    metrics = get_monitoring_metrics()
-    
-    # Add system metrics
-    system_metrics = {
-        "cpu_usage": psutil.cpu_percent(interval=1),
-        "memory_usage": psutil.virtual_memory().percent,
-        "disk_usage": psutil.disk_usage('/').percent,
-        "uptime": datetime.now().isoformat()
-    }
-    
-    return {
-        "application_metrics": metrics,
-        "system_metrics": system_metrics,
-        "timestamp": datetime.utcnow().isoformat()
-    }
+# Request/Response Models
+class AlertSummaryResponse(BaseModel):
+    compartment_id: str
+    total_alarms: int
+    active_alarms: int
+    severity_breakdown: Dict[str, int]
+    recent_activity: Dict[str, Any]
+    top_alerts: List[Dict[str, Any]]
+    timestamp: str
+    health_score: float
 
-@router.get("/health/deep")
-async def deep_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Comprehensive health check including database connectivity"""
-    health_status = {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "version": "1.0.0",
-        "environment": "development"
-    }
-    
-    # Check database connectivity
-    try:
-        db.execute(text("SELECT 1"))
-        health_status["database"] = {
-            "status": "healthy",
-            "connection": "active"
-        }
-    except Exception as e:
-        health_status["status"] = "unhealthy"
-        health_status["database"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-    
-    # Check system resources
-    try:
-        cpu_usage = psutil.cpu_percent()
-        memory_usage = psutil.virtual_memory().percent
-        
-        health_status["system"] = {
-            "cpu_usage": cpu_usage,
-            "memory_usage": memory_usage,
-            "status": "healthy" if cpu_usage < 80 and memory_usage < 80 else "warning"
-        }
-    except Exception as e:
-        health_status["system"] = {
-            "status": "error",
-            "error": str(e)
-        }
-    
-    # Check Python version and dependencies
-    health_status["runtime"] = {
-        "python_version": sys.version,
-        "platform": sys.platform
-    }
-    
-    return health_status
+class MetricsRequest(BaseModel):
+    namespace: str
+    metric_name: str
+    start_time: datetime
+    end_time: datetime
+    resource_group: Optional[str] = None
 
-@router.get("/stats")
-async def get_application_stats() -> Dict[str, Any]:
-    """Get detailed application statistics"""
+class LogSearchRequest(BaseModel):
+    search_query: str
+    start_time: datetime
+    end_time: datetime
+    limit: Optional[int] = 1000
+
+# Monitoring Endpoints
+@router.get("/alerts/summary")
+async def get_alert_summary(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> AlertSummaryResponse:
+    """
+    Get comprehensive alert summary for a compartment.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns alert counts by severity, recent activity, and health score.
+    """
     try:
-        # Get database statistics
-        with engine.connect() as conn:
-            # Count total users
-            user_count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
-            # Count total roles
-            role_count = conn.execute(text("SELECT COUNT(*) FROM roles")).scalar()
+        logger.info(f"Getting alert summary for compartment {compartment_id} by user {current_user.username}")
         
-        stats = {
-            "database": {
-                "total_users": user_count,
-                "total_roles": role_count
+        summary = await monitoring_service.get_alert_summary(compartment_id)
+        return AlertSummaryResponse(**summary)
+        
+    except Exception as e:
+        logger.error(f"Failed to get alert summary: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve alert summary")
+
+@router.get("/alarms")
+async def get_alarms(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Get current alarm status from OCI Monitoring.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns list of active alarms with their configuration and status.
+    """
+    try:
+        logger.info(f"Getting alarms for compartment {compartment_id}")
+        
+        alarms = await monitoring_service.get_alarm_status(compartment_id)
+        return alarms
+        
+    except Exception as e:
+        logger.error(f"Failed to get alarms: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve alarms")
+
+@router.get("/alarms/history")
+async def get_alarm_history(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    hours_back: int = Query(24, description="Hours of history to retrieve", ge=1, le=168),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Get alarm history from OCI Monitoring.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns alarm status changes over the specified time period.
+    """
+    try:
+        logger.info(f"Getting alarm history for compartment {compartment_id}, {hours_back} hours back")
+        
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=hours_back)
+        
+        history = await monitoring_service.get_alarm_history(compartment_id, start_time, end_time)
+        return history
+        
+    except Exception as e:
+        logger.error(f"Failed to get alarm history: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve alarm history")
+
+@router.post("/metrics")
+async def get_metrics_data(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    metrics_request: MetricsRequest = None,
+    current_user: User = Depends(require_permissions("viewer"))
+) -> Dict[str, Any]:
+    """
+    Get metrics data from OCI Monitoring.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns time-series metrics data for the specified metric and time range.
+    """
+    try:
+        logger.info(f"Getting metrics data for {metrics_request.namespace}.{metrics_request.metric_name}")
+        
+        metrics_data = await monitoring_service.get_metrics_data(
+            compartment_id=compartment_id,
+            namespace=metrics_request.namespace,
+            metric_name=metrics_request.metric_name,
+            start_time=metrics_request.start_time,
+            end_time=metrics_request.end_time,
+            resource_group=metrics_request.resource_group
+        )
+        
+        return metrics_data
+        
+    except Exception as e:
+        logger.error(f"Failed to get metrics data: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve metrics data")
+
+@router.get("/metrics/namespaces")
+async def get_metric_namespaces(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[str]:
+    """
+    Get available metric namespaces for the compartment.
+    
+    **Required permissions:** viewer or higher
+    """
+    try:
+        # Return common OCI metric namespaces
+        namespaces = [
+            "oci_computeagent",
+            "oci_database",
+            "oci_lbaas",
+            "oci_apigateway",
+            "oci_containerengine",
+            "oci_autonomous_database",
+            "oci_objectstorage",
+            "oci_network_load_balancer"
+        ]
+        
+        return namespaces
+        
+    except Exception as e:
+        logger.error(f"Failed to get metric namespaces: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve metric namespaces")
+
+@router.post("/logs/search")
+async def search_logs(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    log_request: LogSearchRequest = None,
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Search logs using OCI Log Search API.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns log entries matching the search criteria.
+    """
+    try:
+        logger.info(f"Searching logs for compartment {compartment_id}")
+        
+        logs = await monitoring_service.search_logs(
+            compartment_id=compartment_id,
+            search_query=log_request.search_query,
+            start_time=log_request.start_time,
+            end_time=log_request.end_time,
+            limit=log_request.limit
+        )
+        
+        return logs
+        
+    except Exception as e:
+        logger.error(f"Failed to search logs: {e}")
+        raise HTTPException(status_code=500, detail="Unable to search logs")
+
+@router.get("/health")
+async def get_monitoring_health(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> Dict[str, Any]:
+    """
+    Get overall monitoring health status for a compartment.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns aggregated health metrics and status indicators.
+    """
+    try:
+        logger.info(f"Getting monitoring health for compartment {compartment_id}")
+        
+        # Get alert summary to calculate health
+        summary = await monitoring_service.get_alert_summary(compartment_id)
+        
+        # Determine overall health status
+        health_score = summary.get("health_score", 0)
+        if health_score >= 90:
+            status = "HEALTHY"
+            status_color = "green"
+        elif health_score >= 70:
+            status = "WARNING"
+            status_color = "yellow"
+        elif health_score >= 50:
+            status = "DEGRADED"
+            status_color = "orange"
+        else:
+            status = "CRITICAL"
+            status_color = "red"
+        
+        health_data = {
+            "compartment_id": compartment_id,
+            "overall_status": status,
+            "status_color": status_color,
+            "health_score": health_score,
+            "critical_alerts": summary.get("severity_breakdown", {}).get("CRITICAL", 0),
+            "high_alerts": summary.get("severity_breakdown", {}).get("HIGH", 0),
+            "total_active_alarms": summary.get("active_alarms", 0),
+            "alert_rate_24h": summary.get("recent_activity", {}).get("alert_rate", 0),
+            "last_updated": datetime.utcnow().isoformat()
+        }
+        
+        return health_data
+        
+    except Exception as e:
+        logger.error(f"Failed to get monitoring health: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve monitoring health")
+
+@router.get("/dashboard")
+async def get_monitoring_dashboard(
+    compartment_id: str = Query(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> Dict[str, Any]:
+    """
+    Get comprehensive monitoring dashboard data.
+    
+    **Required permissions:** viewer or higher
+    
+    Returns all monitoring data needed for the dashboard view.
+    """
+    try:
+        logger.info(f"Getting monitoring dashboard for compartment {compartment_id}")
+        
+        # Get all monitoring data in parallel
+        import asyncio
+        
+        # Create tasks for parallel execution
+        tasks = []
+        tasks.append(monitoring_service.get_alert_summary(compartment_id))
+        tasks.append(monitoring_service.get_alarm_status(compartment_id))
+        
+        # Get recent alarm history (last 24 hours)
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=24)
+        tasks.append(monitoring_service.get_alarm_history(compartment_id, start_time, end_time))
+        
+        # Execute all tasks
+        summary, alarms, history = await asyncio.gather(*tasks)
+        
+        # Build dashboard response
+        dashboard = {
+            "compartment_id": compartment_id,
+            "summary": summary,
+            "active_alarms": alarms[:10],  # Top 10 alarms
+            "recent_history": history[:50],  # Last 50 history entries
+            "trends": {
+                "total_alarms_trend": len(alarms),
+                "critical_alerts_trend": summary.get("severity_breakdown", {}).get("CRITICAL", 0),
+                "health_score_trend": summary.get("health_score", 0)
             },
-            "application": get_monitoring_metrics(),
-            "timestamp": datetime.utcnow().isoformat()
+            "quick_stats": {
+                "uptime_score": min(100, summary.get("health_score", 0) + 10),
+                "performance_score": summary.get("health_score", 0),
+                "security_alerts": sum([
+                    summary.get("severity_breakdown", {}).get("CRITICAL", 0),
+                    summary.get("severity_breakdown", {}).get("HIGH", 0)
+                ])
+            },
+            "last_updated": datetime.utcnow().isoformat()
         }
         
-        return stats
+        return dashboard
         
     except Exception as e:
+        logger.error(f"Failed to get monitoring dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve monitoring dashboard")
+
+# Test endpoint (no auth required for development)
+@router.get("/test")
+async def test_monitoring_integration():
+    """
+    Test endpoint to verify monitoring service integration.
+    Use this to test if monitoring APIs are working.
+    """
+    try:
+        logger.info("🧪 Testing monitoring integration")
+        
+        # Test with a mock compartment (use same format as UI for consistency)
+        test_compartment = "test-compartment"
+        
+        # Clear any cached data to ensure fresh results for testing
+        monitoring_service.oci_service.cache.delete(f"alarm_status_{test_compartment}")
+        
+        # Test basic monitoring service
+        summary = await monitoring_service.get_alert_summary(test_compartment)
+        
+        logger.info(f"Test result - Health Score: {summary.get('health_score', 'N/A')}, "
+                   f"Critical: {summary.get('severity_breakdown', {}).get('CRITICAL', 0)}, "
+                   f"High: {summary.get('severity_breakdown', {}).get('HIGH', 0)}")
+        
         return {
-            "error": "Failed to retrieve statistics",
-            "details": str(e),
+            "status": "success",
+            "monitoring_available": True,
+            "test_summary": summary,
             "timestamp": datetime.utcnow().isoformat()
         }
-
-@router.get("/info")
-async def get_api_info() -> Dict[str, Any]:
-    """Get API information and available endpoints"""
-    return {
-        "name": "GenAI CloudOps API",
-        "version": "1.0.0",
-        "description": "Backend API for GenAI CloudOps Platform",
-        "environment": "development",
-        "features": [
-            "Authentication & Authorization",
-            "Role-Based Access Control",
-            "Rate Limiting",
-            "Request Logging",
-            "Error Handling",
-            "Monitoring & Metrics"
-        ],
-        "endpoints": {
-            "auth": "/api/v1/auth",
-            "health": "/api/v1/health",
-            "monitoring": "/api/v1/monitoring",
-            "docs": "/docs",
-            "openapi": "/openapi.json"
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    } 
+        
+    except Exception as e:
+        logger.error(f"❌ Monitoring test failed: {e}")
+        return {
+            "status": "error",
+            "monitoring_available": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        } 

@@ -132,7 +132,7 @@ gateway = APIGateway()
 
 # Register internal services (these would be external in a real microservices setup)
 gateway.registry.register_service("auth", "http://localhost:8000", "/api/v1/health")
-gateway.registry.register_service("monitoring", "http://localhost:8000", "/api/v1/monitoring/health")
+gateway.registry.register_service("monitoring", "http://localhost:8000", "/api/v1/health/")
 
 async def setup_gateway_health_checks():
     """Setup periodic health checks for all services"""

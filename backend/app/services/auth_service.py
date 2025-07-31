@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends, Header
 from app.models.user import User, Role, UserRole, RoleEnum
 from app.core.security import (
     verify_password, 
@@ -117,8 +117,8 @@ class AuthService:
         
         return AuthService.create_tokens(user)
     
-    @staticmethod  
-    def get_current_user(token: str) -> User:
+    @staticmethod
+    def get_current_user_from_token(token: str) -> User:
         """Get current user from JWT token"""
         user_data = verify_token(token)
         if not user_data:
@@ -145,6 +145,38 @@ class AuthService:
             return user
         finally:
             db.close()
+    
+    @staticmethod
+    def extract_token_from_header(authorization: str = Header(None)) -> str:
+        """Extract Bearer token from Authorization header"""
+        if not authorization:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header missing",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        try:
+            scheme, token = authorization.split()
+            if scheme.lower() != "bearer":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication scheme",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return token
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization header format",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
+    @staticmethod
+    def get_current_user(authorization: str = Header(None)) -> User:
+        """FastAPI dependency to get current user from Authorization header"""
+        token = AuthService.extract_token_from_header(authorization)
+        return AuthService.get_current_user_from_token(token)
     
     @staticmethod
     def get_user_permissions(db: Session, user: User) -> Dict[str, bool]:

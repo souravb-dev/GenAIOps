@@ -2,6 +2,7 @@ import asyncio
 import oci
 import json
 import logging
+import os
 try:
     import redis
     REDIS_AVAILABLE = True
@@ -65,20 +66,23 @@ class OCIAuthConfig:
     """OCI authentication configuration management"""
     
     def __init__(self):
-        self.config_file = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
-        self.profile = os.getenv("OCI_PROFILE", "DEFAULT")
-        self.region = os.getenv("OCI_REGION", "us-phoenix-1")
+        from app.core.config import settings
+        
+        self.config_file = os.getenv("OCI_CONFIG_FILE", settings.OCI_CONFIG_FILE)
+        self.profile = os.getenv("OCI_PROFILE", settings.OCI_PROFILE)
+        self.region = os.getenv("OCI_REGION", settings.OCI_REGION)
         
         # Environment variable based auth (for containerized environments)
-        self.tenancy_id = os.getenv("OCI_TENANCY_ID")
-        self.user_id = os.getenv("OCI_USER_ID")
-        self.fingerprint = os.getenv("OCI_FINGERPRINT")
-        self.key_file = os.getenv("OCI_KEY_FILE")
+        self.tenancy_id = os.getenv("OCI_TENANCY_ID", settings.OCI_TENANCY_ID)
+        self.user_id = os.getenv("OCI_USER_ID", settings.OCI_USER_ID)
+        self.fingerprint = os.getenv("OCI_FINGERPRINT", settings.OCI_FINGERPRINT)
+        self.key_file = os.getenv("OCI_KEY_FILE", settings.OCI_KEY_FILE)
         
     def get_config(self) -> Dict[str, str]:
         """Get OCI configuration for SDK initialization"""
         if self.tenancy_id and self.user_id and self.fingerprint and self.key_file:
             # Use environment variables
+            logger.info("Using OCI configuration from environment variables")
             return {
                 "user": self.user_id,
                 "key_file": self.key_file,
@@ -89,22 +93,45 @@ class OCIAuthConfig:
         else:
             # Use config file
             try:
-                return oci.config.from_file(self.config_file, self.profile)
+                # Expand Windows paths properly
+                expanded_config_file = os.path.expanduser(self.config_file)
+                if not os.path.exists(expanded_config_file):
+                    # Try the literal path on Windows
+                    if os.path.exists(self.config_file):
+                        expanded_config_file = self.config_file
+                    else:
+                        raise FileNotFoundError(f"OCI config file not found at {self.config_file} or {expanded_config_file}")
+                
+                logger.info(f"Loading OCI config from: {expanded_config_file}")
+                config = oci.config.from_file(expanded_config_file, self.profile)
+                
+                # Validate config has required fields
+                required_fields = ["user", "tenancy", "region", "fingerprint"]
+                missing_fields = [field for field in required_fields if not config.get(field)]
+                if missing_fields:
+                    raise ValueError(f"OCI config missing required fields: {missing_fields}")
+                
+                logger.info(f"✅ OCI config loaded successfully for region: {config.get('region')}")
+                return config
+                
             except Exception as e:
-                logger.warning(f"Could not load OCI config file: {e}")
-                # Return minimal config for mock/development mode
-                return {
-                    "region": self.region,
-                    "tenancy": "ocid1.tenancy.oc1..example",
-                    "user": "ocid1.user.oc1..example",
-                    "fingerprint": "example:fingerprint",
-                    "key_file": "/dev/null"
-                }
+                logger.error(f"❌ Failed to load OCI config file: {e}")
+                logger.error(f"Config file path: {self.config_file}")
+                logger.error(f"Profile: {self.profile}")
+                # Don't fall back to mock - raise the error so we know what's wrong
+                raise RuntimeError(f"OCI configuration failed: {e}")
 
 class OCICacheManager:
     """Redis-based caching for OCI API responses"""
     
     def __init__(self):
+        # Check if Redis is explicitly disabled
+        from app.core.config import settings
+        if not settings.REDIS_ENABLED:
+            logger.info("Redis caching disabled via configuration")
+            self.cache_enabled = False
+            return
+            
         if not REDIS_AVAILABLE:
             logger.warning("Redis module not available - caching disabled")
             self.cache_enabled = False
@@ -112,9 +139,9 @@ class OCICacheManager:
             
         try:
             self.redis_client = redis.Redis(
-                host=os.getenv("REDIS_HOST", "localhost"),
-                port=int(os.getenv("REDIS_PORT", 6379)),
-                db=int(os.getenv("REDIS_DB", 0)),
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                db=settings.REDIS_DB,
                 decode_responses=True
             )
             # Test connection
@@ -146,6 +173,17 @@ class OCICacheManager:
         except Exception as e:
             logger.warning(f"Cache set error: {e}")
             return False
+    
+    def delete(self, key: str) -> bool:
+        """Delete cached data"""
+        if not self.cache_enabled:
+            return False
+        try:
+            self.redis_client.delete(key)
+            return True
+        except Exception as e:
+            logger.warning(f"Cache delete error: {e}")
+            return False
 
 class OCIService:
     """Comprehensive OCI SDK integration service"""
@@ -153,17 +191,29 @@ class OCIService:
     def __init__(self):
         self.auth_config = OCIAuthConfig()
         self.cache = OCICacheManager()
-        self.config = self.auth_config.get_config()
         self.clients = {}
+        self.oci_available = False
+        self.config = None
         self._initialize_clients()
     
     def _initialize_clients(self):
         """Initialize OCI SDK clients"""
         try:
+            # Get OCI configuration
+            self.config = self.auth_config.get_config()
+            
+            # Validate configuration first
+            oci.config.validate_config(self.config)
+            logger.info(f"✅ OCI config validation passed for tenancy: {self.config.get('tenancy', 'unknown')}")
+            
             # Core clients
             self.clients['compute'] = oci.core.ComputeClient(self.config)
             self.clients['identity'] = oci.identity.IdentityClient(self.config)
             self.clients['monitoring'] = oci.monitoring.MonitoringClient(self.config)
+            
+            # Logging client for alerts and logs
+            self.clients['logging'] = oci.logging.LoggingManagementClient(self.config)
+            self.clients['log_search'] = oci.loggingsearch.LogSearchClient(self.config)
             
             # Database clients
             self.clients['database'] = oci.database.DatabaseClient(self.config)
@@ -177,18 +227,37 @@ class OCIService:
             # Virtual network client
             self.clients['virtual_network'] = oci.core.VirtualNetworkClient(self.config)
             
-            logger.info("OCI SDK clients initialized successfully")
+            logger.info("✅ OCI SDK clients initialized successfully")
+            
+            # Test the connection with a simple call
+            try:
+                identity_client = self.clients['identity']
+                tenancy = identity_client.get_tenancy(self.config['tenancy'])
+                logger.info(f"✅ OCI connection test successful. Tenancy: {tenancy.data.name}")
+                self.oci_available = True
+            except Exception as test_error:
+                logger.warning(f"⚠️ OCI clients created but connection test failed: {test_error}")
+                logger.warning("🔄 Will use mock data for development")
+                self.oci_available = False
             
         except Exception as e:
-            logger.error(f"Failed to initialize OCI clients: {e}")
-            # Initialize mock clients for development
+            logger.error(f"❌ Failed to initialize OCI clients: {e}")
+            if self.config:
+                logger.error(f"Config details: region={self.config.get('region')}, user={self.config.get('user', 'unknown')}")
+            logger.warning("🔄 Falling back to mock data for development")
+            self.oci_available = False
             self.clients = {}
+            self.config = {"region": "us-ashburn-1"}
 
     async def _make_oci_call(self, client_method, *args, **kwargs):
         """Make OCI API call with retry logic"""
         try:
+            # Create a wrapper function to handle kwargs properly
+            def call_with_kwargs():
+                return client_method(*args, **kwargs)
+            
             return await asyncio.get_event_loop().run_in_executor(
-                None, client_method, *args, **kwargs
+                None, call_with_kwargs
             )
         except oci.exceptions.ServiceError as e:
             logger.error(f"OCI API error: {e}")
@@ -202,29 +271,46 @@ class OCIService:
         cache_key = "oci:compartments"
         cached = self.cache.get(cache_key)
         if cached:
+            logger.info(f"📦 Returning {len(cached)} compartments from cache")
             return cached
         
         try:
-            if 'identity' not in self.clients:
-                # Mock response for development
+            if not self.oci_available:
+                # Mock response for development/demo
+                logger.info("🔄 Using mock compartments (OCI not available)")
                 mock_compartments = [
                     {
-                        "id": "ocid1.compartment.oc1..example1",
-                        "name": "Development", 
-                        "description": "Development environment",
+                        "id": "ocid1.compartment.oc1..demo1",
+                        "name": "Demo-Development", 
+                        "description": "Development environment (Demo)",
                         "lifecycle_state": "ACTIVE"
                     },
                     {
-                        "id": "ocid1.compartment.oc1..example2",
-                        "name": "Production",
-                        "description": "Production environment", 
+                        "id": "ocid1.compartment.oc1..demo2",
+                        "name": "Demo-Production",
+                        "description": "Production environment (Demo)", 
+                        "lifecycle_state": "ACTIVE"
+                    },
+                    {
+                        "id": "ocid1.compartment.oc1..demo3",
+                        "name": "Demo-Testing",
+                        "description": "Testing environment (Demo)", 
                         "lifecycle_state": "ACTIVE"
                     }
                 ]
                 self.cache.set(cache_key, mock_compartments, 600)  # 10 minutes cache
                 return mock_compartments
             
+            logger.info("🔍 Fetching real compartments from OCI...")
             tenancy_id = self.config.get('tenancy')
+            
+            # Get root compartment (tenancy) first
+            root_compartment = await self._make_oci_call(
+                self.clients['identity'].get_compartment,
+                tenancy_id
+            )
+            
+            # Get all compartments in tenancy
             response = await self._make_oci_call(
                 self.clients['identity'].list_compartments,
                 tenancy_id,
@@ -232,20 +318,43 @@ class OCIService:
             )
             
             compartments = []
+            
+            # Add root compartment
+            compartments.append({
+                "id": root_compartment.data.id,
+                "name": root_compartment.data.name + " (root)",
+                "description": root_compartment.data.description or "Root compartment",
+                "lifecycle_state": root_compartment.data.lifecycle_state
+            })
+            
+            # Add sub-compartments with hierarchical information
             for comp in response.data:
                 compartments.append({
                     "id": comp.id,
                     "name": comp.name,
-                    "description": comp.description,
-                    "lifecycle_state": comp.lifecycle_state
+                    "description": comp.description or "No description",
+                    "lifecycle_state": comp.lifecycle_state,
+                    "compartment_id": comp.compartment_id,  # Parent compartment
+                    "time_created": comp.time_created.isoformat() if comp.time_created else None
                 })
             
+            logger.info(f"✅ Retrieved {len(compartments)} compartments from OCI")
             self.cache.set(cache_key, compartments, 600)  # 10 minutes cache
             return compartments
             
         except Exception as e:
-            logger.error(f"Failed to get compartments: {e}")
-            raise ExternalServiceError("Unable to retrieve compartments")
+            logger.error(f"❌ Failed to get compartments: {e}")
+            # Fallback to mock data on error
+            logger.warning("🔄 Falling back to mock compartments due to error")
+            mock_compartments = [
+                {
+                    "id": "ocid1.compartment.oc1..error1",
+                    "name": "Error-Fallback",
+                    "description": "Fallback compartment due to API error",
+                    "lifecycle_state": "ACTIVE"
+                }
+            ]
+            return mock_compartments
 
     async def get_compute_instances(self, compartment_id: str) -> List[Dict[str, Any]]:
         """Get compute instances in a compartment"""
@@ -293,7 +402,8 @@ class OCIService:
             
         except Exception as e:
             logger.error(f"Failed to get compute instances: {e}")
-            raise ExternalServiceError("Unable to retrieve compute instances")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
 
     async def get_databases(self, compartment_id: str) -> List[Dict[str, Any]]:
         """Get database services in a compartment"""
@@ -342,7 +452,8 @@ class OCIService:
             
         except Exception as e:
             logger.error(f"Failed to get databases: {e}")
-            raise ExternalServiceError("Unable to retrieve databases")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
 
     async def get_oke_clusters(self, compartment_id: str) -> List[Dict[str, Any]]:
         """Get OKE clusters in a compartment"""
@@ -386,7 +497,8 @@ class OCIService:
             
         except Exception as e:
             logger.error(f"Failed to get OKE clusters: {e}")
-            raise ExternalServiceError("Unable to retrieve OKE clusters")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
 
     async def get_api_gateways(self, compartment_id: str) -> List[Dict[str, Any]]:
         """Get API Gateways in a compartment"""
@@ -428,7 +540,8 @@ class OCIService:
             
         except Exception as e:
             logger.error(f"Failed to get API gateways: {e}")
-            raise ExternalServiceError("Unable to retrieve API gateways")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
 
     async def get_load_balancers(self, compartment_id: str) -> List[Dict[str, Any]]:
         """Get load balancers in a compartment"""
@@ -472,7 +585,83 @@ class OCIService:
             
         except Exception as e:
             logger.error(f"Failed to get load balancers: {e}")
-            raise ExternalServiceError("Unable to retrieve load balancers")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
+
+    async def get_network_resources(self, compartment_id: str) -> List[Dict[str, Any]]:
+        """Get network resources (VCNs, subnets, etc.) in a compartment"""
+        cache_key = f"oci:network:{compartment_id}"
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+        
+        try:
+            if 'virtual_network' not in self.clients:
+                # Mock response
+                mock_networks = [
+                    {
+                        "id": "ocid1.vcn.oc1.phx.example1",
+                        "display_name": "prod-vcn",
+                        "lifecycle_state": "AVAILABLE",
+                        "cidr_block": "10.0.0.0/16",
+                        "resource_type": "VCN"
+                    },
+                    {
+                        "id": "ocid1.subnet.oc1.phx.example1",
+                        "display_name": "public-subnet",
+                        "lifecycle_state": "AVAILABLE",
+                        "cidr_block": "10.0.1.0/24",
+                        "resource_type": "Subnet"
+                    }
+                ]
+                self.cache.set(cache_key, mock_networks, 300)
+                return mock_networks
+            
+            # Get VCNs
+            vcn_response = await self._make_oci_call(
+                self.clients['virtual_network'].list_vcns,
+                compartment_id
+            )
+            
+            networks = []
+            for vcn in vcn_response.data:
+                networks.append({
+                    "id": vcn.id,
+                    "display_name": vcn.display_name,
+                    "lifecycle_state": vcn.lifecycle_state,
+                    "cidr_block": vcn.cidr_block,
+                    "resource_type": "VCN",
+                    "time_created": vcn.time_created.isoformat() if vcn.time_created else None
+                })
+                
+                # Get subnets for each VCN
+                try:
+                    subnet_response = await self._make_oci_call(
+                        self.clients['virtual_network'].list_subnets,
+                        compartment_id,
+                        vcn_id=vcn.id
+                    )
+                    
+                    for subnet in subnet_response.data:
+                        networks.append({
+                            "id": subnet.id,
+                            "display_name": f"  └─ {subnet.display_name}",
+                            "lifecycle_state": subnet.lifecycle_state,
+                            "cidr_block": subnet.cidr_block,
+                            "resource_type": "Subnet",
+                            "vcn_id": vcn.id,
+                            "time_created": subnet.time_created.isoformat() if subnet.time_created else None
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to get subnets for VCN {vcn.id}: {e}")
+            
+            self.cache.set(cache_key, networks, 300)
+            return networks
+            
+        except Exception as e:
+            logger.error(f"Failed to get network resources: {e}")
+            # Return empty list instead of raising exception to prevent frontend crashes
+            return []
 
     async def get_resource_metrics(self, resource_id: str, resource_type: str) -> Dict[str, Any]:
         """Get real-time metrics for a resource"""
@@ -542,6 +731,9 @@ class OCIService:
             
             if not resource_filter or 'load_balancers' in resource_filter:
                 tasks.append(('load_balancers', self.get_load_balancers(compartment_id)))
+            
+            if not resource_filter or 'network_resources' in resource_filter:
+                tasks.append(('network_resources', self.get_network_resources(compartment_id)))
             
             # Execute all tasks in parallel
             results = {}

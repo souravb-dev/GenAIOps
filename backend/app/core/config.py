@@ -27,6 +27,29 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     
+    # Redis Settings
+    REDIS_ENABLED: bool = True
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    
+    # OCI Configuration
+    OCI_CONFIG_FILE: str = "C:\\Users\\2375603\\.oci\\config"
+    OCI_PROFILE: str = "DEFAULT"
+    OCI_REGION: str = "us-ashburn-1"
+    OCI_TENANCY_ID: str = ""
+    OCI_USER_ID: str = ""
+    OCI_FINGERPRINT: str = ""
+    OCI_KEY_FILE: str = ""
+    
+    # Monitoring Configuration
+    MONITORING_CACHE_TTL: int = 300  # 5 minutes cache for monitoring data
+    ALERT_HISTORY_HOURS: int = 24  # Default hours of alert history to retrieve
+    MAX_LOG_SEARCH_RESULTS: int = 1000  # Maximum log search results per query
+    HEALTH_SCORE_THRESHOLD_HEALTHY: float = 90.0
+    HEALTH_SCORE_THRESHOLD_WARNING: float = 70.0
+    HEALTH_SCORE_THRESHOLD_DEGRADED: float = 50.0
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

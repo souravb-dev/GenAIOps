@@ -25,7 +25,7 @@ def get_current_user(
 ) -> User:
     """Dependency to get current authenticated user"""
     token = credentials.credentials
-    return AuthService.get_current_user(token)
+    return AuthService.get_current_user_from_token(token)
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(

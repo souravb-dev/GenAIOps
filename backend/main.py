@@ -99,16 +99,7 @@ OpenAPI documentation.
     ]
 )
 
-# Add middleware (order matters - they are executed in reverse order)
-app.add_middleware(LoggingMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, calls=100, period=60)  # 100 requests per minute
-app.add_middleware(ErrorHandlingMiddleware)
-
-# Add monitoring middleware
-app.add_middleware(MonitoringMiddleware)
-
-# Set up CORS
+# Add CORS middleware first (order matters - they are executed in reverse order)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -116,6 +107,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add other middleware
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, calls=100, period=60)  # 100 requests per minute
+app.add_middleware(ErrorHandlingMiddleware)
+app.add_middleware(MonitoringMiddleware)
 
 # Add exception handlers
 app.add_exception_handler(BaseCustomException, custom_exception_handler)
@@ -135,10 +133,10 @@ async def startup_event() -> None:
         init_default_roles()
         print("Default roles initialized successfully")
         
-        # Initialize gateway and start health checks
-        from app.core.gateway import setup_gateway_health_checks
-        asyncio.create_task(setup_gateway_health_checks())
-        print("API Gateway health checks started")
+        # Initialize gateway (health checks disabled for now to prevent startup loops)
+        # from app.core.gateway import setup_gateway_health_checks
+        # asyncio.create_task(setup_gateway_health_checks())
+        print("API Gateway initialized (health checks disabled)")
         
         print("✅ GenAI CloudOps API started successfully")
         print("📊 Features enabled: Authentication, RBAC, Rate Limiting, "

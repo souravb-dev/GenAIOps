@@ -7,6 +7,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginForm } from './components/auth/LoginForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardPage } from './components/pages/DashboardPage';
+import { MonitoringPage } from './components/pages/MonitoringPage';
 import './App.css';
 
 // Placeholder components for future modules
@@ -21,16 +22,7 @@ function CloudResourcesPage() {
   );
 }
 
-function MonitoringPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Monitoring</h1>
-      <p className="text-gray-600 dark:text-gray-400">
-        Monitoring module will be implemented in future tasks.
-      </p>
-    </div>
-  );
-}
+
 
 function KubernetesPage() {
   return (

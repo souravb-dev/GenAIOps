@@ -1,15 +1,48 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, Path
 from typing import List, Dict, Any, Optional
-from app.services.cloud_service import oci_service, cloud_ops_service
 from app.core.permissions import require_permissions
-from app.schemas.auth import UserResponse
 from app.models.user import User
 from pydantic import BaseModel
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Lazy-load OCI service to avoid startup hangs
+def get_oci_service():
+    from app.services.cloud_service import oci_service
+    return oci_service
+
+def get_cloud_ops_service():
+    from app.services.cloud_service import cloud_ops_service
+    return cloud_ops_service
+
 router = APIRouter()
+
+# Test endpoint (no auth required)
+@router.get("/test/compartments")
+async def test_compartments():
+    """
+    Test endpoint to verify OCI connection without authentication.
+    Use this to test if the backend can connect to OCI.
+    """
+    try:
+        logger.info("🧪 Testing OCI compartments connection (no auth)")
+        oci_svc = get_oci_service()
+        compartments = await oci_svc.get_compartments()
+        return {
+            "status": "success",
+            "oci_available": oci_svc.oci_available,
+            "compartment_count": len(compartments),
+            "compartments": compartments
+        }
+    except Exception as e:
+        logger.error(f"❌ Test compartments failed: {e}")
+        return {
+            "status": "error",
+            "oci_available": False,
+            "error": str(e),
+            "compartments": []
+        }
 
 # Response models
 class CompartmentResponse(BaseModel):
@@ -39,7 +72,7 @@ class ResourceSummaryResponse(BaseModel):
 
 @router.get("/compartments", response_model=List[CompartmentResponse])
 async def get_compartments(
-    current_user: User = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[CompartmentResponse]:
     """
     Get all accessible OCI compartments.
@@ -48,8 +81,10 @@ async def get_compartments(
     
     Returns a list of compartments the user has access to view.
     """
+    logger.info(f"🔍 User {current_user.username} requesting compartments")
     try:
-        compartments = await oci_service.get_compartments()
+        oci_svc = get_oci_service()
+        compartments = await oci_svc.get_compartments()
         return [CompartmentResponse(**comp) for comp in compartments]
     except Exception as e:
         logger.warning(f"OCI not configured, returning mock data: {e}")
@@ -59,9 +94,7 @@ async def get_compartments(
                 id="ocid1.compartment.oc1..demo",
                 name="Demo Compartment",
                 description="Demo compartment - OCI not configured",
-                lifecycle_state="ACTIVE",
-                time_created="2024-01-01T00:00:00Z",
-                resource_count=0
+                lifecycle_state="ACTIVE"
             )
         ]
 
@@ -69,7 +102,7 @@ async def get_compartments(
 async def get_compartment_resources(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
     resource_types: Optional[str] = Query(None, description="Comma-separated list of resource types to filter"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> ResourceSummaryResponse:
     """
     Get all resources in a specific compartment.
@@ -87,7 +120,8 @@ async def get_compartment_resources(
         if resource_types:
             resource_filter = [rt.strip() for rt in resource_types.split(",")]
         
-        resources = await oci_service.get_all_resources(compartment_id, resource_filter)
+        oci_svc = get_oci_service()
+        resources = await oci_svc.get_all_resources(compartment_id, resource_filter)
         return ResourceSummaryResponse(**resources)
     except Exception as e:
         logger.error(f"Failed to get compartment resources: {e}")
@@ -96,7 +130,7 @@ async def get_compartment_resources(
 @router.get("/compartments/{compartment_id}/compute-instances")
 async def get_compute_instances(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[Dict[str, Any]]:
     """
     Get compute instances in a compartment.
@@ -104,7 +138,8 @@ async def get_compute_instances(
     **Required permissions:** viewer, operator, or admin
     """
     try:
-        instances = await oci_service.get_compute_instances(compartment_id)
+        oci_svc = get_oci_service()
+        instances = await oci_svc.get_compute_instances(compartment_id)
         return instances
     except Exception as e:
         logger.error(f"Failed to get compute instances: {e}")
@@ -113,7 +148,7 @@ async def get_compute_instances(
 @router.get("/compartments/{compartment_id}/databases")
 async def get_databases(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[Dict[str, Any]]:
     """
     Get database services in a compartment.
@@ -121,7 +156,8 @@ async def get_databases(
     **Required permissions:** viewer, operator, or admin
     """
     try:
-        databases = await oci_service.get_databases(compartment_id)
+        oci_svc = get_oci_service()
+        databases = await oci_svc.get_databases(compartment_id)
         return databases
     except Exception as e:
         logger.error(f"Failed to get databases: {e}")
@@ -130,7 +166,7 @@ async def get_databases(
 @router.get("/compartments/{compartment_id}/oke-clusters")
 async def get_oke_clusters(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[Dict[str, Any]]:
     """
     Get OKE clusters in a compartment.
@@ -138,7 +174,8 @@ async def get_oke_clusters(
     **Required permissions:** viewer, operator, or admin
     """
     try:
-        clusters = await oci_service.get_oke_clusters(compartment_id)
+        oci_svc = get_oci_service()
+        clusters = await oci_svc.get_oke_clusters(compartment_id)
         return clusters
     except Exception as e:
         logger.error(f"Failed to get OKE clusters: {e}")
@@ -147,7 +184,7 @@ async def get_oke_clusters(
 @router.get("/compartments/{compartment_id}/api-gateways")
 async def get_api_gateways(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[Dict[str, Any]]:
     """
     Get API Gateways in a compartment.
@@ -155,7 +192,8 @@ async def get_api_gateways(
     **Required permissions:** viewer, operator, or admin
     """
     try:
-        gateways = await oci_service.get_api_gateways(compartment_id)
+        oci_svc = get_oci_service()
+        gateways = await oci_svc.get_api_gateways(compartment_id)
         return gateways
     except Exception as e:
         logger.error(f"Failed to get API gateways: {e}")
@@ -164,7 +202,7 @@ async def get_api_gateways(
 @router.get("/compartments/{compartment_id}/load-balancers")
 async def get_load_balancers(
     compartment_id: str = Path(..., description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> List[Dict[str, Any]]:
     """
     Get load balancers in a compartment.
@@ -172,17 +210,36 @@ async def get_load_balancers(
     **Required permissions:** viewer, operator, or admin
     """
     try:
-        load_balancers = await oci_service.get_load_balancers(compartment_id)
+        oci_svc = get_oci_service()
+        load_balancers = await oci_svc.get_load_balancers(compartment_id)
         return load_balancers
     except Exception as e:
         logger.error(f"Failed to get load balancers: {e}")
         raise HTTPException(status_code=500, detail="Unable to retrieve load balancers")
 
+@router.get("/compartments/{compartment_id}/network-resources")
+async def get_network_resources(
+    compartment_id: str = Path(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Get network resources (VCNs, subnets) in a compartment.
+    
+    **Required permissions:** viewer, operator, or admin
+    """
+    try:
+        oci_svc = get_oci_service()
+        network_resources = await oci_svc.get_network_resources(compartment_id)
+        return network_resources
+    except Exception as e:
+        logger.error(f"Failed to get network resources: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve network resources")
+
 @router.get("/resources/{resource_id}/metrics", response_model=MetricsResponse)
 async def get_resource_metrics(
     resource_id: str = Path(..., description="OCI Resource ID"),
     resource_type: str = Query(..., description="Type of resource (compute_instance, database, etc.)"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> MetricsResponse:
     """
     Get real-time metrics for a specific resource.
@@ -196,7 +253,8 @@ async def get_resource_metrics(
     Returns CPU, memory, network metrics and health status.
     """
     try:
-        metrics = await oci_service.get_resource_metrics(resource_id, resource_type)
+        oci_svc = get_oci_service()
+        metrics = await oci_svc.get_resource_metrics(resource_id, resource_type)
         return MetricsResponse(**metrics)
     except Exception as e:
         logger.error(f"Failed to get resource metrics: {e}")
@@ -207,7 +265,7 @@ async def get_resource_metrics(
 async def get_cloud_resources(
     provider: str = Query("oci", description="Cloud provider"),
     compartment_id: Optional[str] = Query(None, description="OCI Compartment ID"),
-    current_user: UserResponse = Depends(require_permissions(["viewer", "operator", "admin"]))
+    current_user: User = Depends(require_permissions("viewer"))
 ) -> Dict[str, Any]:
     """
     Legacy endpoint: Get cloud resources from specified provider.
@@ -218,7 +276,8 @@ async def get_cloud_resources(
     Use the new compartment-specific endpoints for better performance.
     """
     try:
-        resources = await cloud_ops_service.get_cloud_resources(provider, compartment_id)
+        cloud_ops_svc = get_cloud_ops_service()
+        resources = await cloud_ops_svc.get_cloud_resources(provider, compartment_id)
         return resources
     except Exception as e:
         logger.error(f"Failed to get cloud resources: {e}")
@@ -228,7 +287,7 @@ async def get_cloud_resources(
 async def execute_resource_action(
     resource_id: str = Path(..., description="OCI Resource ID"),
     action: str = Path(..., description="Action to execute"),
-    current_user: UserResponse = Depends(require_permissions(["operator", "admin"]))
+    current_user: User = Depends(require_permissions("operator"))
 ) -> Dict[str, Any]:
     """
     Execute an action on a specific resource.
