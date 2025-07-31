@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud
+from app.api.endpoints import health, auth, monitoring, cloud, notifications
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
 api_router.include_router(cloud.router, prefix="/cloud", tags=["cloud-operations"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 
 # Include gateway routes
 gateway = get_gateway()
@@ -27,14 +28,16 @@ async def api_root():
             "rate-limiting",
             "cloud-operations",
             "kubernetes-integration",
-            "async-microservices"
+            "async-microservices",
+            "real-time-notifications"
         ],
         "endpoints": {
             "health": "/health",
             "auth": "/auth", 
             "monitoring": "/monitoring",
             "gateway": "/gateway",
-            "cloud": "/cloud"
+            "cloud": "/cloud",
+            "notifications": "/notifications"
         },
         "microservices": {
             "authentication": "User management and JWT-based auth",

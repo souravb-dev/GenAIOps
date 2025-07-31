@@ -227,6 +227,10 @@ class OCIService:
             # Virtual network client
             self.clients['virtual_network'] = oci.core.VirtualNetworkClient(self.config)
             
+            # Storage clients - CRITICAL: These were missing!
+            self.clients['block_storage'] = oci.core.BlockstorageClient(self.config)
+            self.clients['file_storage'] = oci.file_storage.FileStorageClient(self.config)
+            
             logger.info("✅ OCI SDK clients initialized successfully")
             
             # Test the connection with a simple call
@@ -276,41 +280,14 @@ class OCIService:
         
         try:
             if not self.oci_available:
-                # Mock response for development/demo
-                logger.info("🔄 Using mock compartments (OCI not available)")
-                mock_compartments = [
-                    {
-                        "id": "ocid1.compartment.oc1..demo1",
-                        "name": "Demo-Development", 
-                        "description": "Development environment (Demo)",
-                        "lifecycle_state": "ACTIVE"
-                    },
-                    {
-                        "id": "ocid1.compartment.oc1..demo2",
-                        "name": "Demo-Production",
-                        "description": "Production environment (Demo)", 
-                        "lifecycle_state": "ACTIVE"
-                    },
-                    {
-                        "id": "ocid1.compartment.oc1..demo3",
-                        "name": "Demo-Testing",
-                        "description": "Testing environment (Demo)", 
-                        "lifecycle_state": "ACTIVE"
-                    }
-                ]
-                self.cache.set(cache_key, mock_compartments, 600)  # 10 minutes cache
-                return mock_compartments
+                logger.warning("❌ OCI not available - no compartments to display")
+                return []
             
             logger.info("🔍 Fetching real compartments from OCI...")
             tenancy_id = self.config.get('tenancy')
             
-            # Get root compartment (tenancy) first
-            root_compartment = await self._make_oci_call(
-                self.clients['identity'].get_compartment,
-                tenancy_id
-            )
-            
-            # Get all compartments in tenancy
+            # Use the same working pattern as our test script
+            # Get all compartments in tenancy (including root)
             response = await self._make_oci_call(
                 self.clients['identity'].list_compartments,
                 tenancy_id,
@@ -319,15 +296,15 @@ class OCIService:
             
             compartments = []
             
-            # Add root compartment
+            # Add tenancy as root compartment first 
             compartments.append({
-                "id": root_compartment.data.id,
-                "name": root_compartment.data.name + " (root)",
-                "description": root_compartment.data.description or "Root compartment",
-                "lifecycle_state": root_compartment.data.lifecycle_state
+                "id": tenancy_id,
+                "name": "Root Tenancy",
+                "description": "Root tenancy compartment",
+                "lifecycle_state": "ACTIVE"
             })
             
-            # Add sub-compartments with hierarchical information
+            # Add all discovered compartments
             for comp in response.data:
                 compartments.append({
                     "id": comp.id,
@@ -364,21 +341,9 @@ class OCIService:
             return cached
         
         try:
-            if 'compute' not in self.clients:
-                # Mock response
-                mock_instances = [
-                    {
-                        "id": "ocid1.instance.oc1.phx.example1",
-                        "display_name": "web-server-prod",
-                        "lifecycle_state": "RUNNING",
-                        "shape": "VM.Standard.E4.Flex",
-                        "availability_domain": "Uocm:PHX-AD-1",
-                        "time_created": datetime.utcnow().isoformat(),
-                        "region": self.config.get('region', 'us-phoenix-1')
-                    }
-                ]
-                self.cache.set(cache_key, mock_instances, 300)
-                return mock_instances
+            if not self.oci_available or 'compute' not in self.clients:
+                logger.warning("❌ OCI compute client not available - no compute instances to display")
+                return []
             
             response = await self._make_oci_call(
                 self.clients['compute'].list_instances,
@@ -406,53 +371,111 @@ class OCIService:
             return []
 
     async def get_databases(self, compartment_id: str) -> List[Dict[str, Any]]:
-        """Get database services in a compartment"""
+        """Get database services in a compartment (both DB Systems and Autonomous Databases)"""
         cache_key = f"oci:databases:{compartment_id}"
         cached = self.cache.get(cache_key)
         if cached:
             return cached
         
         try:
-            if 'database' not in self.clients:
-                # Mock response
-                mock_databases = [
-                    {
-                        "id": "ocid1.autonomousdatabase.oc1.phx.example1",
-                        "db_name": "proddb",
-                        "display_name": "Production Database",
-                        "lifecycle_state": "AVAILABLE",
-                        "db_workload": "OLTP",
-                        "cpu_core_count": 2,
-                        "data_storage_size_in_gbs": 1024
-                    }
-                ]
-                self.cache.set(cache_key, mock_databases, 300)
-                return mock_databases
-            
-            # Get autonomous databases
-            response = await self._make_oci_call(
-                self.clients['database'].list_autonomous_databases,
-                compartment_id
-            )
+            if not self.oci_available or 'database' not in self.clients:
+                logger.warning("❌ OCI database client not available - no databases to display")
+                return []
             
             databases = []
-            for db in response.data:
-                databases.append({
-                    "id": db.id,
-                    "db_name": db.db_name,
-                    "display_name": db.display_name,
-                    "lifecycle_state": db.lifecycle_state,
-                    "db_workload": db.db_workload,
-                    "cpu_core_count": db.cpu_core_count,
-                    "data_storage_size_in_gbs": db.data_storage_size_in_gbs
-                })
             
+            # Get Database Systems (VM and Bare Metal DB systems)
+            try:
+                db_systems_response = await self._make_oci_call(
+                    self.clients['database'].list_db_systems,
+                    compartment_id=compartment_id
+                )
+                
+                for db_system in db_systems_response.data:
+                    databases.append({
+                        "id": db_system.id,
+                        "display_name": db_system.display_name,
+                        "lifecycle_state": db_system.lifecycle_state,
+                        "database_edition": getattr(db_system, 'database_edition', 'Unknown'),
+                        "shape": getattr(db_system, 'shape', 'Unknown'),
+                        "cpu_core_count": getattr(db_system, 'cpu_core_count', 0),
+                        "data_storage_size_in_gbs": getattr(db_system, 'data_storage_size_in_gbs', 0),
+                        "node_count": getattr(db_system, 'node_count', 1),
+                        "availability_domain": getattr(db_system, 'availability_domain', 'Unknown'),
+                        "resource_type": "DB_SYSTEM",
+                        "time_created": db_system.time_created.isoformat() if db_system.time_created else None
+                    })
+                    
+                    # Get DB Homes within each DB system, then databases within each DB Home
+                    try:
+                        # First get DB Homes for this DB System
+                        db_homes_response = await self._make_oci_call(
+                            self.clients['database'].list_db_homes,
+                            compartment_id=compartment_id,
+                            db_system_id=db_system.id
+                        )
+                        
+                        for db_home in db_homes_response.data:
+                            # Then get databases within each DB Home
+                            try:
+                                databases_response = await self._make_oci_call(
+                                    self.clients['database'].list_databases,
+                                    compartment_id=compartment_id,
+                                    db_home_id=db_home.id
+                                )
+                                
+                                for db in databases_response.data:
+                                    databases.append({
+                                        "id": db.id,
+                                        "display_name": f"  └─ {db.db_name} (Database)",
+                                        "db_name": db.db_name,
+                                        "lifecycle_state": db.lifecycle_state,
+                                        "db_workload": getattr(db, 'db_workload', 'Unknown'),
+                                        "character_set": getattr(db, 'character_set', 'Unknown'),
+                                        "pdb_name": getattr(db, 'pdb_name', None),
+                                        "is_cdb": getattr(db, 'is_cdb', False),
+                                        "resource_type": "DATABASE",
+                                        "db_system_id": db_system.id,
+                                        "db_home_id": db_home.id,
+                                        "time_created": db.time_created.isoformat() if db.time_created else None
+                                    })
+                            except Exception as db_error:
+                                logger.warning(f"Failed to get databases for DB home {db_home.id}: {db_error}")
+                                
+                    except Exception as db_home_error:
+                        logger.warning(f"Failed to get DB homes for DB system {db_system.id}: {db_home_error}")
+                        
+            except Exception as e:
+                logger.warning(f"Failed to get DB systems: {e}")
+            
+            # Also get Autonomous Databases
+            try:
+                autonomous_response = await self._make_oci_call(
+                    self.clients['database'].list_autonomous_databases,
+                    compartment_id=compartment_id
+                )
+                
+                for db in autonomous_response.data:
+                    databases.append({
+                        "id": db.id,
+                        "db_name": getattr(db, 'db_name', 'Unknown'),
+                        "display_name": db.display_name,
+                        "lifecycle_state": db.lifecycle_state,
+                        "db_workload": getattr(db, 'db_workload', 'Unknown'),
+                        "cpu_core_count": getattr(db, 'cpu_core_count', 0),
+                        "data_storage_size_in_tbs": getattr(db, 'data_storage_size_in_tbs', 0),
+                        "resource_type": "AUTONOMOUS_DATABASE",
+                        "time_created": db.time_created.isoformat() if db.time_created else None
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to get Autonomous databases: {e}")
+            
+            logger.info(f"Found {len(databases)} total database resources in compartment")
             self.cache.set(cache_key, databases, 300)
             return databases
             
         except Exception as e:
             logger.error(f"Failed to get databases: {e}")
-            # Return empty list instead of raising exception to prevent frontend crashes
             return []
 
     async def get_oke_clusters(self, compartment_id: str) -> List[Dict[str, Any]]:
@@ -463,19 +486,9 @@ class OCIService:
             return cached
         
         try:
-            if 'container_engine' not in self.clients:
-                # Mock response
-                mock_clusters = [
-                    {
-                        "id": "ocid1.cluster.oc1.phx.example1",
-                        "name": "prod-cluster",
-                        "lifecycle_state": "ACTIVE",
-                        "kubernetes_version": "v1.28.2",
-                        "vcn_id": "ocid1.vcn.oc1.phx.example1"
-                    }
-                ]
-                self.cache.set(cache_key, mock_clusters, 300)
-                return mock_clusters
+            if not self.oci_available or 'container_engine' not in self.clients:
+                logger.warning("❌ OCI container engine client not available - no OKE clusters to display")
+                return []
             
             response = await self._make_oci_call(
                 self.clients['container_engine'].list_clusters,
@@ -508,18 +521,9 @@ class OCIService:
             return cached
         
         try:
-            if 'api_gateway' not in self.clients:
-                # Mock response
-                mock_gateways = [
-                    {
-                        "id": "ocid1.apigateway.oc1.phx.example1",
-                        "display_name": "prod-api-gateway",
-                        "lifecycle_state": "ACTIVE",
-                        "hostname": "example-gateway.us-phoenix-1.oci.oraclecloud.com"
-                    }
-                ]
-                self.cache.set(cache_key, mock_gateways, 300)
-                return mock_gateways
+            if not self.oci_available or 'api_gateway' not in self.clients:
+                logger.warning("❌ OCI API gateway client not available - no API gateways to display")
+                return []
             
             response = await self._make_oci_call(
                 self.clients['api_gateway'].list_gateways,
@@ -527,12 +531,14 @@ class OCIService:
             )
             
             gateways = []
-            for gateway in response.data:
+            # Handle the GatewayCollection object properly
+            gateway_list = response.data.items if hasattr(response.data, 'items') else response.data
+            for gateway in gateway_list:
                 gateways.append({
                     "id": gateway.id,
                     "display_name": gateway.display_name,
                     "lifecycle_state": gateway.lifecycle_state,
-                    "hostname": gateway.hostname
+                    "hostname": getattr(gateway, 'hostname', 'N/A')
                 })
             
             self.cache.set(cache_key, gateways, 300)
@@ -551,19 +557,9 @@ class OCIService:
             return cached
         
         try:
-            if 'load_balancer' not in self.clients:
-                # Mock response
-                mock_lbs = [
-                    {
-                        "id": "ocid1.loadbalancer.oc1.phx.example1",
-                        "display_name": "prod-load-balancer",
-                        "lifecycle_state": "ACTIVE",
-                        "shape_name": "100Mbps",
-                        "is_private": False
-                    }
-                ]
-                self.cache.set(cache_key, mock_lbs, 300)
-                return mock_lbs
+            if not self.oci_available or 'load_balancer' not in self.clients:
+                logger.warning("❌ OCI load balancer client not available - no load balancers to display")
+                return []
             
             response = await self._make_oci_call(
                 self.clients['load_balancer'].list_load_balancers,
@@ -596,26 +592,9 @@ class OCIService:
             return cached
         
         try:
-            if 'virtual_network' not in self.clients:
-                # Mock response
-                mock_networks = [
-                    {
-                        "id": "ocid1.vcn.oc1.phx.example1",
-                        "display_name": "prod-vcn",
-                        "lifecycle_state": "AVAILABLE",
-                        "cidr_block": "10.0.0.0/16",
-                        "resource_type": "VCN"
-                    },
-                    {
-                        "id": "ocid1.subnet.oc1.phx.example1",
-                        "display_name": "public-subnet",
-                        "lifecycle_state": "AVAILABLE",
-                        "cidr_block": "10.0.1.0/24",
-                        "resource_type": "Subnet"
-                    }
-                ]
-                self.cache.set(cache_key, mock_networks, 300)
-                return mock_networks
+            if not self.oci_available or 'virtual_network' not in self.clients:
+                logger.warning("❌ OCI virtual network client not available - no network resources to display")
+                return []
             
             # Get VCNs
             vcn_response = await self._make_oci_call(
@@ -663,6 +642,93 @@ class OCIService:
             # Return empty list instead of raising exception to prevent frontend crashes
             return []
 
+    async def get_block_volumes(self, compartment_id: str) -> List[Dict[str, Any]]:
+        """Get block volumes in a compartment"""
+        cache_key = f"oci:block_volumes:{compartment_id}"
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+        
+        try:
+            if not self.oci_available or 'block_storage' not in self.clients:
+                logger.warning("❌ OCI block storage client not available - no block volumes to display")
+                return []
+            
+            response = await self._make_oci_call(
+                self.clients['block_storage'].list_volumes,
+                compartment_id=compartment_id
+            )
+            
+            volumes = []
+            for volume in response.data:
+                volumes.append({
+                    "id": volume.id,
+                    "display_name": volume.display_name,
+                    "lifecycle_state": volume.lifecycle_state,
+                    "size_in_gbs": volume.size_in_gbs,
+                    "availability_domain": volume.availability_domain,
+                    "volume_group_id": getattr(volume, 'volume_group_id', None),
+                    "is_hydrated": getattr(volume, 'is_hydrated', True),
+                    "time_created": volume.time_created.isoformat() if volume.time_created else None
+                })
+            
+            self.cache.set(cache_key, volumes, 300)
+            return volumes
+            
+        except Exception as e:
+            logger.error(f"Failed to get block volumes: {e}")
+            return []
+
+    async def get_file_systems(self, compartment_id: str) -> List[Dict[str, Any]]:
+        """Get file systems in a compartment"""
+        cache_key = f"oci:file_systems:{compartment_id}"
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+        
+        try:
+            if not self.oci_available or 'file_storage' not in self.clients:
+                logger.warning("❌ OCI file storage client not available - no file systems to display")
+                return []
+            
+            # Get availability domains first
+            identity_client = self.clients['identity']
+            ads_response = await self._make_oci_call(
+                identity_client.list_availability_domains,
+                compartment_id=self.config['tenancy']
+            )
+            
+            file_systems = []
+            # Query file systems in each availability domain
+            for ad in ads_response.data:
+                try:
+                    response = await self._make_oci_call(
+                        self.clients['file_storage'].list_file_systems,
+                        compartment_id=compartment_id,
+                        availability_domain=ad.name
+                    )
+                    
+                    for fs in response.data:
+                        file_systems.append({
+                            "id": fs.id,
+                            "display_name": fs.display_name,
+                            "lifecycle_state": fs.lifecycle_state,
+                            "availability_domain": fs.availability_domain,
+                            "metered_bytes": getattr(fs, 'metered_bytes', 0),
+                            "source_details": getattr(fs, 'source_details', None),
+                            "time_created": fs.time_created.isoformat() if fs.time_created else None
+                        })
+                except Exception as ad_error:
+                    logger.warning(f"Failed to get file systems in AD {ad.name}: {ad_error}")
+                    continue
+            
+            self.cache.set(cache_key, file_systems, 300)
+            return file_systems
+            
+        except Exception as e:
+            logger.error(f"Failed to get file systems: {e}")
+            return []
+
     async def get_resource_metrics(self, resource_id: str, resource_type: str) -> Dict[str, Any]:
         """Get real-time metrics for a resource"""
         cache_key = f"oci:metrics:{resource_id}:{resource_type}"
@@ -671,21 +737,19 @@ class OCIService:
             return cached
         
         try:
-            if 'monitoring' not in self.clients:
-                # Mock metrics
-                mock_metrics = {
+            if not self.oci_available or 'monitoring' not in self.clients:
+                logger.warning("❌ OCI monitoring client not available - no metrics to display")
+                return {
                     "resource_id": resource_id,
                     "metrics": {
-                        "cpu_utilization": 45.2,
-                        "memory_utilization": 67.8,
-                        "network_bytes_in": 1024000,
-                        "network_bytes_out": 512000
+                        "cpu_utilization": 0.0,
+                        "memory_utilization": 0.0,
+                        "network_bytes_in": 0,
+                        "network_bytes_out": 0
                     },
                     "timestamp": datetime.utcnow().isoformat(),
-                    "health_status": "HEALTHY"
+                    "health_status": "NO_DATA"
                 }
-                self.cache.set(cache_key, mock_metrics, 60)  # 1 minute cache
-                return mock_metrics
             
             # Query OCI monitoring service for real metrics
             # This is a simplified implementation - real metrics would require specific queries
@@ -714,46 +778,131 @@ class OCIService:
     async def get_all_resources(self, compartment_id: str, resource_filter: Optional[List[str]] = None) -> Dict[str, Any]:
         """Get all resources in a compartment with optional filtering"""
         try:
-            # Get all resource types in parallel
-            tasks = []
+            # If compartment_id is a tenancy root, query all compartments
+            is_tenancy_root = compartment_id == self.config.get('tenancy') if self.config else False
             
-            if not resource_filter or 'compute' in resource_filter:
-                tasks.append(('compute_instances', self.get_compute_instances(compartment_id)))
-            
-            if not resource_filter or 'databases' in resource_filter:
-                tasks.append(('databases', self.get_databases(compartment_id)))
-            
-            if not resource_filter or 'oke_clusters' in resource_filter:
-                tasks.append(('oke_clusters', self.get_oke_clusters(compartment_id)))
-            
-            if not resource_filter or 'api_gateways' in resource_filter:
-                tasks.append(('api_gateways', self.get_api_gateways(compartment_id)))
-            
-            if not resource_filter or 'load_balancers' in resource_filter:
-                tasks.append(('load_balancers', self.get_load_balancers(compartment_id)))
-            
-            if not resource_filter or 'network_resources' in resource_filter:
-                tasks.append(('network_resources', self.get_network_resources(compartment_id)))
-            
-            # Execute all tasks in parallel
-            results = {}
-            for name, task in tasks:
-                try:
-                    results[name] = await task
-                except Exception as e:
-                    logger.error(f"Failed to get {name}: {e}")
-                    results[name] = []
-            
-            return {
-                "compartment_id": compartment_id,
-                "resources": results,
-                "total_resources": sum(len(resources) for resources in results.values()),
-                "last_updated": datetime.utcnow().isoformat()
-            }
+            if is_tenancy_root:
+                logger.info("🔍 Querying all compartments for resources...")
+                return await self._get_all_resources_from_all_compartments(resource_filter)
+            else:
+                logger.info(f"🔍 Querying single compartment for resources: {compartment_id}")
+                return await self._get_all_resources_from_single_compartment(compartment_id, resource_filter)
             
         except Exception as e:
             logger.error(f"Failed to get all resources: {e}")
             raise ExternalServiceError("Unable to retrieve compartment resources")
+
+    async def _get_all_resources_from_all_compartments(self, resource_filter: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Get resources from all compartments in the tenancy - TENANCY AGNOSTIC"""
+        try:
+            # Get all compartments
+            compartments = await self.get_compartments()
+            logger.info(f"Found {len(compartments)} compartments to query")
+            
+            # Get the appropriate methods
+            method_map = {
+                'compute_instances': self.get_compute_instances,
+                'databases': self.get_databases,
+                'oke_clusters': self.get_oke_clusters,
+                'api_gateways': self.get_api_gateways,
+                'load_balancers': self.get_load_balancers,
+                'network_resources': self.get_network_resources,
+                'block_volumes': self.get_block_volumes,
+                'file_systems': self.get_file_systems
+            }
+            
+            # Initialize aggregated results
+            aggregated_results = {resource_type: [] for resource_type in method_map.keys()}
+            
+            # Query ALL compartments for ALL resource types (tenancy agnostic approach)
+            for comp in compartments:
+                comp_name = comp['name']
+                comp_id = comp['id']
+                
+                logger.info(f"Querying compartment: {comp_name}")
+                
+                for resource_type, method in method_map.items():
+                    if resource_filter and resource_type not in resource_filter:
+                        continue
+                    
+                    try:
+                        resources = await method(comp_id)
+                        if resources:
+                            # Add compartment info to each resource for tracking
+                            for resource in resources:
+                                resource['source_compartment'] = comp_name
+                                
+                            aggregated_results[resource_type].extend(resources)
+                            logger.info(f"Found {len(resources)} {resource_type} in {comp_name}")
+                            
+                    except Exception as e:
+                        # Log but don't fail - some compartments may not have permissions for certain resources
+                        logger.debug(f"Could not query {resource_type} from {comp_name}: {e}")
+            
+            # Summary logging
+            total_resources = sum(len(resources) for resources in aggregated_results.values())
+            logger.info(f"Total resources found across all compartments: {total_resources}")
+            
+            for resource_type, resources in aggregated_results.items():
+                if resources:
+                    logger.info(f"  {resource_type}: {len(resources)} resources")
+            
+            return {
+                "compartment_id": "all_compartments",
+                "resources": aggregated_results,
+                "total_resources": total_resources,
+                "last_updated": datetime.utcnow().isoformat(),
+                "compartments_queried": len(compartments)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get resources from all compartments: {e}")
+            raise
+
+    async def _get_all_resources_from_single_compartment(self, compartment_id: str, resource_filter: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Get all resources from a single compartment"""
+        # Get all resource types in parallel
+        tasks = []
+        
+        if not resource_filter or 'compute_instances' in resource_filter:
+            tasks.append(('compute_instances', self.get_compute_instances(compartment_id)))
+        
+        if not resource_filter or 'databases' in resource_filter:
+            tasks.append(('databases', self.get_databases(compartment_id)))
+        
+        if not resource_filter or 'oke_clusters' in resource_filter:
+            tasks.append(('oke_clusters', self.get_oke_clusters(compartment_id)))
+        
+        if not resource_filter or 'api_gateways' in resource_filter:
+            tasks.append(('api_gateways', self.get_api_gateways(compartment_id)))
+        
+        if not resource_filter or 'load_balancers' in resource_filter:
+            tasks.append(('load_balancers', self.get_load_balancers(compartment_id)))
+        
+        if not resource_filter or 'network_resources' in resource_filter:
+            tasks.append(('network_resources', self.get_network_resources(compartment_id)))
+        
+        if not resource_filter or 'block_volumes' in resource_filter:
+            tasks.append(('block_volumes', self.get_block_volumes(compartment_id)))
+        
+        if not resource_filter or 'file_systems' in resource_filter:
+            tasks.append(('file_systems', self.get_file_systems(compartment_id)))
+        
+        # Execute all tasks in parallel
+        results = {}
+        for name, task in tasks:
+            try:
+                results[name] = await task
+            except Exception as e:
+                logger.error(f"Failed to get {name}: {e}")
+                results[name] = []
+        
+        return {
+            "compartment_id": compartment_id,
+            "resources": results,
+            "total_resources": sum(len(resources) for resources in results.values()),
+            "last_updated": datetime.utcnow().isoformat()
+        }
 
 # Legacy CloudOperationsService for backward compatibility
 class CloudOperationsService:

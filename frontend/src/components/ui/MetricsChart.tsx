@@ -38,7 +38,7 @@ export function MetricsChart({ title, type, data, loading }: MetricsChartProps) 
 
   const generateHealthData = () => {
     const allResources = Object.values(data.resources).flat();
-    const healthyCount = allResources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING').length;
+    const healthyCount = allResources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING' || r.lifecycle_state === 'AVAILABLE').length;
     const stoppedCount = allResources.filter(r => r.lifecycle_state === 'STOPPED' || r.lifecycle_state === 'INACTIVE').length;
     const errorCount = allResources.filter(r => r.lifecycle_state === 'FAILED' || r.lifecycle_state === 'ERROR').length;
     const otherCount = allResources.length - healthyCount - stoppedCount - errorCount;
@@ -56,7 +56,7 @@ export function MetricsChart({ title, type, data, loading }: MetricsChartProps) 
     return Object.entries(data.resources).map(([type, resources]) => ({
       name: type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       count: resources.length,
-      healthy: resources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING').length,
+      healthy: resources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING' || r.lifecycle_state === 'AVAILABLE').length,
       stopped: resources.filter(r => r.lifecycle_state === 'STOPPED' || r.lifecycle_state === 'INACTIVE').length,
       error: resources.filter(r => r.lifecycle_state === 'FAILED' || r.lifecycle_state === 'ERROR').length,
     }));

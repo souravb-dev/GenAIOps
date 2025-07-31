@@ -42,6 +42,10 @@ export interface AllResourcesResponse {
     oke_clusters: CloudResource[];
     api_gateways: CloudResource[];
     load_balancers: CloudResource[];
+    network_resources: CloudResource[];
+    storage_resources: CloudResource[];
+    block_volumes: CloudResource[];
+    file_systems: CloudResource[];
   };
   total_resources: number;
   last_updated: string;
@@ -103,6 +107,24 @@ const cloudApi = {
   // Get load balancers
   getLoadBalancers: async (compartmentId: string): Promise<CloudResource[]> => {
     const response = await api.get<CloudResource[]>(`/cloud/compartments/${compartmentId}/load-balancers`);
+    return response.data;
+  },
+
+  // Get network resources
+  getNetworkResources: async (compartmentId: string): Promise<CloudResource[]> => {
+    const response = await api.get<CloudResource[]>(`/cloud/compartments/${compartmentId}/network-resources`);
+    return response.data;
+  },
+
+  // Get block volumes
+  getBlockVolumes: async (compartmentId: string): Promise<CloudResource[]> => {
+    const response = await api.get<CloudResource[]>(`/cloud/compartments/${compartmentId}/block-volumes`);
+    return response.data;
+  },
+
+  // Get file systems
+  getFileSystems: async (compartmentId: string): Promise<CloudResource[]> => {
+    const response = await api.get<CloudResource[]>(`/cloud/compartments/${compartmentId}/file-systems`);
     return response.data;
   },
 
@@ -190,5 +212,35 @@ export function useResourceMetrics(
 export function useResourceAction(): UseMutationResult<any, Error, { resourceId: string; action: string }> {
   return useMutation({
     mutationFn: ({ resourceId, action }) => cloudApi.executeResourceAction(resourceId, action),
+  });
+} 
+
+// Get network resources
+export function useNetworkResources(compartmentId: string): UseQueryResult<CloudResource[], Error> {
+  return useQuery({
+    queryKey: [...cloudQueryKeys.compartment(compartmentId), 'network-resources'],
+    queryFn: () => cloudApi.getNetworkResources(compartmentId),
+    enabled: !!compartmentId,
+    staleTime: 5 * 60 * 1000, // 5 minutes (network resources don't change often)
+  });
+}
+
+// Get block volumes
+export function useBlockVolumes(compartmentId: string): UseQueryResult<CloudResource[], Error> {
+  return useQuery({
+    queryKey: [...cloudQueryKeys.compartment(compartmentId), 'block-volumes'],
+    queryFn: () => cloudApi.getBlockVolumes(compartmentId),
+    enabled: !!compartmentId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+// Get file systems
+export function useFileSystems(compartmentId: string): UseQueryResult<CloudResource[], Error> {
+  return useQuery({
+    queryKey: [...cloudQueryKeys.compartment(compartmentId), 'file-systems'],
+    queryFn: () => cloudApi.getFileSystems(compartmentId),
+    enabled: !!compartmentId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 } 

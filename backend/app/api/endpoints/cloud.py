@@ -235,6 +235,42 @@ async def get_network_resources(
         logger.error(f"Failed to get network resources: {e}")
         raise HTTPException(status_code=500, detail="Unable to retrieve network resources")
 
+@router.get("/compartments/{compartment_id}/block-volumes")
+async def get_block_volumes(
+    compartment_id: str = Path(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Get block volumes in a compartment.
+    
+    **Required permissions:** viewer, operator, or admin
+    """
+    try:
+        oci_svc = get_oci_service()
+        block_volumes = await oci_svc.get_block_volumes(compartment_id)
+        return block_volumes
+    except Exception as e:
+        logger.error(f"Failed to get block volumes: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve block volumes")
+
+@router.get("/compartments/{compartment_id}/file-systems")
+async def get_file_systems(
+    compartment_id: str = Path(..., description="OCI Compartment ID"),
+    current_user: User = Depends(require_permissions("viewer"))
+) -> List[Dict[str, Any]]:
+    """
+    Get file systems in a compartment.
+    
+    **Required permissions:** viewer, operator, or admin
+    """
+    try:
+        oci_svc = get_oci_service()
+        file_systems = await oci_svc.get_file_systems(compartment_id)
+        return file_systems
+    except Exception as e:
+        logger.error(f"Failed to get file systems: {e}")
+        raise HTTPException(status_code=500, detail="Unable to retrieve file systems")
+
 @router.get("/resources/{resource_id}/metrics", response_model=MetricsResponse)
 async def get_resource_metrics(
     resource_id: str = Path(..., description="OCI Resource ID"),

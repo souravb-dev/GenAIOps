@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { EmptyState } from './EmptyState';
 
 interface Resource {
   id: string;
@@ -11,7 +12,7 @@ interface Resource {
 interface ResourceCardProps {
   title: string;
   icon: string;
-  color: 'blue' | 'green' | 'purple' | 'orange' | 'indigo' | 'red';
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'indigo' | 'red' | 'yellow';
   resources: Resource[];
   resourceType: string;
 }
@@ -49,11 +50,16 @@ export function ResourceCard({ title, icon, color, resources, resourceType }: Re
       bg: 'bg-red-500',
       text: 'text-red-600 dark:text-red-400',
       badge: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+    },
+    yellow: {
+      bg: 'bg-yellow-500',
+      text: 'text-yellow-600 dark:text-yellow-400',
+      badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
     }
   };
 
   const getHealthStatus = (resource: Resource) => {
-    if (resource.lifecycle_state === 'ACTIVE' || resource.lifecycle_state === 'RUNNING') {
+    if (resource.lifecycle_state === 'ACTIVE' || resource.lifecycle_state === 'RUNNING' || resource.lifecycle_state === 'AVAILABLE') {
       return { status: 'healthy', color: 'text-green-500', icon: 'fas fa-check-circle' };
     } else if (resource.lifecycle_state === 'STOPPED' || resource.lifecycle_state === 'INACTIVE') {
       return { status: 'stopped', color: 'text-yellow-500', icon: 'fas fa-pause-circle' };
@@ -64,7 +70,7 @@ export function ResourceCard({ title, icon, color, resources, resourceType }: Re
     }
   };
 
-  const healthyCount = resources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING').length;
+  const healthyCount = resources.filter(r => r.lifecycle_state === 'ACTIVE' || r.lifecycle_state === 'RUNNING' || r.lifecycle_state === 'AVAILABLE').length;
   const stoppedCount = resources.filter(r => r.lifecycle_state === 'STOPPED' || r.lifecycle_state === 'INACTIVE').length;
   const errorCount = resources.filter(r => r.lifecycle_state === 'FAILED' || r.lifecycle_state === 'ERROR').length;
 
@@ -132,30 +138,34 @@ export function ResourceCard({ title, icon, color, resources, resourceType }: Re
           )}
         </div>
 
-        {/* Mock Metrics Display */}
-        {resources.length > 0 && (
+        {/* Empty State or Resource Summary */}
+        {resources.length === 0 ? (
+          <div className="mt-4 text-center py-6">
+            <i className={`${icon} text-2xl ${colorClasses[color].text} mb-2 block`}></i>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No {title.toLowerCase()} found in this compartment
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Check OCI configuration or resource permissions
+            </p>
+          </div>
+        ) : (
           <div className="mt-4 space-y-2">
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Average Metrics
+              Resource Summary
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="text-center">
                 <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {metrics.cpu}%
+                  {healthyCount}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">CPU</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
               </div>
               <div className="text-center">
                 <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {metrics.memory}%
+                  {stoppedCount + errorCount}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Memory</div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {metrics.network}%
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Network</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Inactive</div>
               </div>
             </div>
           </div>
@@ -188,7 +198,7 @@ export function ResourceCard({ title, icon, color, resources, resourceType }: Re
                         </span>
                       </div>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        resource.lifecycle_state === 'ACTIVE' || resource.lifecycle_state === 'RUNNING'
+                        resource.lifecycle_state === 'ACTIVE' || resource.lifecycle_state === 'RUNNING' || resource.lifecycle_state === 'AVAILABLE'
                           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : resource.lifecycle_state === 'STOPPED' || resource.lifecycle_state === 'INACTIVE'
                           ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryProvider } from './providers/QueryProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardPage } from './components/pages/DashboardPage';
 import { MonitoringPage } from './components/pages/MonitoringPage';
 import './App.css';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 // Placeholder components for future modules
 function CloudResourcesPage() {
@@ -92,104 +93,102 @@ function NotFound() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <QueryProvider>
-        <Router>
-          <AuthProvider>
-            <div className="App">
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<LoginForm />} />
-                
-                {/* Protected routes with layout */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
-                      <AppLayout>
-                        <DashboardPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/cloud-resources"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
-                      <AppLayout>
-                        <CloudResourcesPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/monitoring"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_view_alerts']}>
-                      <AppLayout>
-                        <MonitoringPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/kubernetes"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_view_pod_analyzer']}>
-                      <AppLayout>
-                        <KubernetesPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/cost-analysis"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_view_cost_analyzer']}>
-                      <AppLayout>
-                        <CostAnalysisPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/automation"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_execute_remediation']}>
-                      <AppLayout>
-                        <AutomationPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute requiredPermissions={['can_manage_users']}>
-                      <AppLayout>
-                        <SettingsPage />
-                      </AppLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                {/* Default redirect */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                
-                {/* 404 page */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-          </AuthProvider>
-        </Router>
-      </QueryProvider>
-    </ErrorBoundary>
+    <QueryProvider>
+      <NotificationProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<LoginForm />} />
+              
+              {/* Protected routes with layout */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
+                    <AppLayout>
+                      <DashboardPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/cloud-resources"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
+                    <AppLayout>
+                      <CloudResourcesPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/monitoring"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_alerts']}>
+                    <AppLayout>
+                      <MonitoringPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/kubernetes"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_pod_analyzer']}>
+                    <AppLayout>
+                      <KubernetesPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/cost-analysis"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_cost_analyzer']}>
+                    <AppLayout>
+                      <CostAnalysisPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/automation"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_execute_remediation']}>
+                    <AppLayout>
+                      <AutomationPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_manage_users']}>
+                    <AppLayout>
+                      <SettingsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Default redirect */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              
+              {/* 404 page */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </NotificationProvider>
+    </QueryProvider>
   );
 }
 
