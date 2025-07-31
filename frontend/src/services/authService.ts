@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from 'axios';
+import { AxiosResponse } from 'axios';
 import { 
   AuthTokens, 
   LoginCredentials, 
@@ -6,16 +6,7 @@ import {
   User, 
   UserPermissions 
 } from '../types/auth';
-
-const API_BASE_URL = 'http://localhost:8000/api/v1';
-
-// Create axios instance
-const authApi = axios.create({
-  baseURL: `${API_BASE_URL}/auth`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import { api } from './apiClient';
 
 // Token management
 const TOKEN_KEY = 'genai_access_token';
@@ -34,139 +25,106 @@ export const tokenManager = {
   },
 };
 
-// Request interceptor to add auth token
-authApi.interceptors.request.use(
-  (config) => {
-    const token = tokenManager.getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor to handle token refresh
-authApi.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const refreshToken = tokenManager.getRefreshToken();
-        if (refreshToken) {
-          const response = await authApi.post('/refresh', {
-            refresh_token: refreshToken,
-          });
-          
-          const tokens: AuthTokens = response.data;
-          tokenManager.setTokens(tokens);
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${tokens.access_token}`;
-          return authApi(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        tokenManager.clearTokens();
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
-    }
-
-    return Promise.reject(error);
-  }
-);
-
+// Auth service methods
 export const authService = {
-  // Authentication methods
-  async login(credentials: LoginCredentials): Promise<AuthTokens> {
-    const response: AxiosResponse<AuthTokens> = await authApi.post('/login', credentials);
-    const tokens = response.data;
-    tokenManager.setTokens(tokens);
-    return tokens;
-  },
-
-  async register(data: RegisterData): Promise<User> {
-    const response: AxiosResponse<User> = await authApi.post('/register', data);
-    return response.data;
-  },
-
-  async logout(): Promise<void> {
+  login: async (credentials: LoginCredentials): Promise<AuthTokens> => {
     try {
-      await authApi.post('/logout');
+      const response = await api.post<AuthTokens>('/auth/login', credentials);
+      const tokens = response.data;
+      tokenManager.setTokens(tokens);
+      return tokens;
     } catch (error) {
-      // Even if logout fails on server, clear local tokens
-      console.error('Logout error:', error);
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+
+  register: async (userData: RegisterData): Promise<User> => {
+    try {
+      const response = await api.post<User>('/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout request failed:', error);
     } finally {
       tokenManager.clearTokens();
     }
   },
 
-  async refreshToken(): Promise<AuthTokens> {
+  refreshToken: async (): Promise<AuthTokens> => {
     const refreshToken = tokenManager.getRefreshToken();
     if (!refreshToken) {
       throw new Error('No refresh token available');
     }
 
-    const response: AxiosResponse<AuthTokens> = await authApi.post('/refresh', {
-      refresh_token: refreshToken,
-    });
-    
-    const tokens = response.data;
-    tokenManager.setTokens(tokens);
-    return tokens;
+    try {
+      const response = await api.post<AuthTokens>('/auth/refresh', {
+        refresh_token: refreshToken,
+      });
+      const tokens = response.data;
+      tokenManager.setTokens(tokens);
+      return tokens;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      tokenManager.clearTokens();
+      throw error;
+    }
   },
 
-  // User information methods
-  async getCurrentUser(): Promise<User> {
-    const response: AxiosResponse<User> = await authApi.get('/me');
-    return response.data;
+  verifyToken: async (): Promise<boolean> => {
+    try {
+      await api.get('/auth/verify-token');
+      return true;
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      return false;
+    }
   },
 
-  async getUserPermissions(): Promise<{ user_id: number; username: string; permissions: UserPermissions }> {
-    const response = await authApi.get('/me/permissions');
-    return response.data;
+  getCurrentUser: async (): Promise<User> => {
+    try {
+      const response = await api.get<User>('/auth/me');
+      return response.data;
+    } catch (error) {
+      console.error('Get current user error:', error);
+      throw error;
+    }
   },
 
-  async verifyToken(): Promise<{ valid: boolean; user_id: number; username: string }> {
-    const response = await authApi.get('/verify-token');
-    return response.data;
+  getUserPermissions: async (): Promise<{ permissions: UserPermissions }> => {
+    try {
+      const response = await api.get<{ permissions: UserPermissions }>('/auth/me/permissions');
+      return response.data;
+    } catch (error) {
+      console.error('Get user permissions error:', error);
+      throw error;
+    }
   },
 
-  // Password management
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    await authApi.post('/change-password', {
-      current_password: currentPassword,
-      new_password: newPassword,
-    });
-  },
-
-  async initiatePasswordReset(email: string): Promise<{ message: string; reset_token?: string }> {
-    const response = await authApi.post('/password-reset/initiate', { email });
-    return response.data;
-  },
-
-  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
-    await authApi.post('/password-reset/confirm', {
-      token,
-      new_password: newPassword,
-    });
-  },
-
-  // Utility methods
-  isAuthenticated(): boolean {
-    return !!tokenManager.getToken();
-  },
-
-  hasValidTokens(): boolean {
-    const accessToken = tokenManager.getToken();
+  hasValidTokens: (): boolean => {
+    const token = tokenManager.getToken();
     const refreshToken = tokenManager.getRefreshToken();
-    return !!(accessToken && refreshToken);
+    return !!(token && refreshToken);
   },
+
+  // Helper method to check if we need to refresh tokens
+  isTokenExpired: (token: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+      return payload.exp < currentTime;
+    } catch {
+      return true;
+    }
+  }
 };
 
 export default authService; 

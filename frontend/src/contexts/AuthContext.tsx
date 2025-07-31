@@ -131,7 +131,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: 'CLEAR_ERROR' });
 
       // Register user
-      const user = await authService.register(data);
+      await authService.register(data);
       
       // Auto-login after successful registration
       await login({ username: data.username, password: data.password });

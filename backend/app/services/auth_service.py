@@ -119,7 +119,7 @@ class AuthService:
     
     @staticmethod  
     def get_current_user(token: str) -> User:
-        """Get current user from JWT token (simplified for dependency injection)"""
+        """Get current user from JWT token"""
         user_data = verify_token(token)
         if not user_data:
             raise HTTPException(
@@ -128,17 +128,23 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # For now, create a minimal user object from token data
-        # In production, you'd want to fetch from database with a separate service
-        from app.models.user import User, RoleEnum
-        user = User()
-        user.id = int(user_data) if isinstance(user_data, str) else user_data.get('user_id', 1)
-        user.username = "current_user"  # Simplified
-        user.email = "user@example.com"  # Simplified  
-        user.role = RoleEnum.ADMIN  # Simplified for testing - grants all permissions
-        user.is_active = True
+        # Get user ID from token
+        user_id = int(user_data) if isinstance(user_data, str) else user_data.get('user_id', 1)
         
-        return user
+        # Fetch real user from database
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user or not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found or inactive",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return user
+        finally:
+            db.close()
     
     @staticmethod
     def get_user_permissions(db: Session, user: User) -> Dict[str, bool]:

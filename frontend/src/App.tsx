@@ -1,17 +1,76 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryProvider } from './providers/QueryProvider';
 import { AuthProvider } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { AppLayout } from './components/layout/AppLayout';
 import { LoginForm } from './components/auth/LoginForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { DashboardPage } from './components/pages/DashboardPage';
 import './App.css';
 
-// Placeholder components for now - these will be implemented in later tasks
-function Dashboard() {
+// Placeholder components for future modules
+function CloudResourcesPage() {
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
-      <p className="text-gray-300">
-        Welcome to the GenAI CloudOps Dashboard! This is a protected route that requires authentication.
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Cloud Resources</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Cloud resources module will be implemented in the next tasks.
+      </p>
+    </div>
+  );
+}
+
+function MonitoringPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Monitoring</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Monitoring module will be implemented in future tasks.
+      </p>
+    </div>
+  );
+}
+
+function KubernetesPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Kubernetes</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Kubernetes module will be implemented in future tasks.
+      </p>
+    </div>
+  );
+}
+
+function CostAnalysisPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Cost Analysis</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Cost analysis module will be implemented in future tasks.
+      </p>
+    </div>
+  );
+}
+
+function AutomationPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Automation</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Automation module will be implemented in future tasks.
+      </p>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Settings</h1>
+      <p className="text-gray-600 dark:text-gray-400">
+        Settings module will be implemented in future tasks.
       </p>
     </div>
   );
@@ -19,13 +78,13 @@ function Dashboard() {
 
 function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center">
         <div className="text-gray-400 text-6xl mb-4">
           <i className="fas fa-exclamation-triangle"></i>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Page Not Found</h2>
-        <p className="text-gray-300 mb-4">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Page Not Found</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
           The page you're looking for doesn't exist.
         </p>
         <a
@@ -41,32 +100,104 @@ function NotFound() {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <div className="App">
-          <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<LoginForm />} />
-            
-            {/* Protected routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* 404 page */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <QueryProvider>
+        <Router>
+          <AuthProvider>
+            <div className="App">
+              <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={<LoginForm />} />
+                
+                {/* Protected routes with layout */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
+                      <AppLayout>
+                        <DashboardPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/cloud-resources"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_view_dashboard']}>
+                      <AppLayout>
+                        <CloudResourcesPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/monitoring"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_view_alerts']}>
+                      <AppLayout>
+                        <MonitoringPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/kubernetes"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_view_pod_analyzer']}>
+                      <AppLayout>
+                        <KubernetesPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/cost-analysis"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_view_cost_analyzer']}>
+                      <AppLayout>
+                        <CostAnalysisPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/automation"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_execute_remediation']}>
+                      <AppLayout>
+                        <AutomationPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute requiredPermissions={['can_manage_users']}>
+                      <AppLayout>
+                        <SettingsPage />
+                      </AppLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Default redirect */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                
+                {/* 404 page */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+          </AuthProvider>
+        </Router>
+      </QueryProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LoginCredentials } from '../../types/auth';
+// import { LoginCredentials } from '../../types/auth';
 
 interface LoginFormData {
   username: string;

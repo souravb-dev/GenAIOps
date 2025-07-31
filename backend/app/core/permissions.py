@@ -16,8 +16,20 @@ class PermissionChecker:
         # Note: We simplified this to not expose Session in the function signature
         # Permission checking can be done based on user roles directly
         
-        # Check if user has required role permissions
-        user_roles = [current_user.role.value] if current_user.role else []
+        # Check if user has required role permissions  
+        # Get user roles from database relationship
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        try:
+            from app.models.user import UserRole, Role
+            user_roles_records = db.query(UserRole).filter(UserRole.user_id == current_user.id).all()
+            user_roles = []
+            for user_role in user_roles_records:
+                role = db.query(Role).filter(Role.id == user_role.role_id).first()
+                if role:
+                    user_roles.append(role.name.value)
+        finally:
+            db.close()
         
         # Map permissions to roles
         permission_role_map = {
