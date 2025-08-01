@@ -16,4 +16,5 @@ psutil==5.9.6
 oci==2.118.0
 tenacity==8.2.3
 redis==5.0.1
-kubernetes==28.1.0 
+kubernetes==28.1.0
+groq==0.4.1 

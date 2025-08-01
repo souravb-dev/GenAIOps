@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Redis Settings
-    REDIS_ENABLED: bool = True
+    REDIS_ENABLED: bool = True  # Enable Redis when available for better performance
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
@@ -49,6 +49,20 @@ class Settings(BaseSettings):
     HEALTH_SCORE_THRESHOLD_HEALTHY: float = 90.0
     HEALTH_SCORE_THRESHOLD_WARNING: float = 70.0
     HEALTH_SCORE_THRESHOLD_DEGRADED: float = 50.0
+    
+    # GenAI Configuration
+    GROQ_API_KEY: str = "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"
+    GROQ_MODEL: str = "llama3-8b-8192"  # Default Groq model
+    GROQ_MAX_TOKENS: int = 1024
+    GROQ_TEMPERATURE: float = 0.7
+    GROQ_TIMEOUT: int = 30  # seconds
+    GENAI_CACHE_TTL: int = 3600  # 1 hour cache for GenAI responses
+    GENAI_RATE_LIMIT_PER_MINUTE: int = 100
+    GENAI_MAX_CONTEXT_LENGTH: int = 4000
+    GENAI_ENABLE_CACHING: bool = False  # Disabled for now - can enable with Redis later
+    GENAI_ENABLE_BATCHING: bool = True
+    GENAI_BATCH_SIZE: int = 5
+    GENAI_FALLBACK_MODEL: str = "mixtral-8x7b-32768"
     
     class Config:
         env_file = ".env"

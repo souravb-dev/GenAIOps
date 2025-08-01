@@ -10,6 +10,26 @@ from .auth import (
     UserWithRoles
 )
 
+from .genai import (
+    PromptTypeEnum,
+    GenAIRequestSchema,
+    GenAIResponseSchema,
+    ChatRequestSchema,
+    ChatResponseSchema,
+    RemediationRequestSchema,
+    RemediationResponseSchema,
+    AnalysisRequestSchema,
+    AnalysisResponseSchema,
+    CustomPromptRequestSchema,
+    BatchRequestSchema,
+    ConversationContextSchema,
+    ServiceStatsSchema,
+    PromptTypesResponse,
+    HealthResponseSchema,
+    ErrorResponseSchema,
+    SuccessResponseSchema
+)
+
 __all__ = [
     "UserCreate",
     "UserLogin", 
@@ -19,5 +39,22 @@ __all__ = [
     "PasswordReset",
     "PasswordResetConfirm",
     "RoleResponse",
-    "UserWithRoles"
+    "UserWithRoles",
+    "PromptTypeEnum",
+    "GenAIRequestSchema",
+    "GenAIResponseSchema",
+    "ChatRequestSchema",
+    "ChatResponseSchema",
+    "RemediationRequestSchema",
+    "RemediationResponseSchema",
+    "AnalysisRequestSchema",
+    "AnalysisResponseSchema",
+    "CustomPromptRequestSchema",
+    "BatchRequestSchema",
+    "ConversationContextSchema",
+    "ServiceStatsSchema",
+    "PromptTypesResponse",
+    "HealthResponseSchema",
+    "ErrorResponseSchema",
+    "SuccessResponseSchema"
 ] 

@@ -295,34 +295,49 @@ class OCIService:
             )
             
             compartments = []
+            seen_ids = set()  # Track compartment IDs to prevent duplicates
             
-            # Add tenancy as root compartment first 
+            # First, add the tenancy itself as the root compartment
             compartments.append({
                 "id": tenancy_id,
                 "name": "Root Tenancy",
                 "description": "Root tenancy compartment",
                 "lifecycle_state": "ACTIVE"
+                # No compartment_id = this is the true root
             })
+            seen_ids.add(tenancy_id)
             
-            # Add all discovered compartments
+            # Then add all discovered compartments from OCI API
             for comp in response.data:
+                # Skip duplicates
+                if comp.id in seen_ids:
+                    logger.warning(f"⚠️  Skipping duplicate compartment: {comp.name} ({comp.id})")
+                    continue
+                    
+                seen_ids.add(comp.id)
+                
+                # Improve root tenancy naming for clarity
+                comp_name = comp.name
+                if comp.id == tenancy_id or not comp.compartment_id:
+                    comp_name = "Root Tenancy" if comp.name == "(root)" else comp.name
+                
                 compartments.append({
                     "id": comp.id,
-                    "name": comp.name,
+                    "name": comp_name,
                     "description": comp.description or "No description",
                     "lifecycle_state": comp.lifecycle_state,
                     "compartment_id": comp.compartment_id,  # Parent compartment
                     "time_created": comp.time_created.isoformat() if comp.time_created else None
                 })
             
-            logger.info(f"✅ Retrieved {len(compartments)} compartments from OCI")
+            logger.info(f"✅ Retrieved {len(compartments)} unique compartments from OCI")
             self.cache.set(cache_key, compartments, 600)  # 10 minutes cache
             return compartments
             
         except Exception as e:
             logger.error(f"❌ Failed to get compartments: {e}")
             # Fallback to mock data on error
-            logger.warning("🔄 Falling back to mock compartments due to error")
+            logger.warning("🔄 Falling back to simple mock compartment due to error")
             mock_compartments = [
                 {
                     "id": "ocid1.compartment.oc1..error1",

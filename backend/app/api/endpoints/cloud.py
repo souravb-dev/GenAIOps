@@ -88,7 +88,7 @@ async def get_compartments(
         return [CompartmentResponse(**comp) for comp in compartments]
     except Exception as e:
         logger.warning(f"OCI not configured, returning mock data: {e}")
-        # Return mock compartments when OCI is not configured
+        # Return simple mock compartment when OCI is not configured
         return [
             CompartmentResponse(
                 id="ocid1.compartment.oc1..demo",

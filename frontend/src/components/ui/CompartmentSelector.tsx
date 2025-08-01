@@ -41,29 +41,39 @@ export function CompartmentSelector({
     };
   }, []);
 
-  // Build hierarchical structure with better organization
+  // Build hierarchical structure with proper parent-child relationships
   const buildHierarchy = (compartments: Compartment[]) => {
     if (!compartments || compartments.length === 0) {
       return [];
     }
 
+    console.log('🏗️ Building compartment hierarchy from data:', compartments);
+    console.log('🔍 Compartment details:', compartments.map(c => `${c.name} (id: ${c.id}, parent: ${c.compartment_id || 'none'})`));
+
     const hierarchy: (Compartment & { level: number; hasChildren: boolean })[] = [];
     
-    // Find root compartments (those without parent_id or where compartment_id equals tenancy_id)
-    const roots = compartments.filter(c => 
-      !c.compartment_id || 
-      c.name.toLowerCase().includes('root') ||
-      c.name.toLowerCase().includes('tenancy')
-    );
+    // Create a map of compartment IDs for quick lookup
+    const compartmentMap = new Map(compartments.map(c => [c.id, c]));
+    
+    // Find root compartments - those with no compartment_id or where compartment_id doesn't exist in our list
+    const roots = compartments.filter(c => {
+      if (!c.compartment_id) return true; // No parent = root
+      
+      // If parent doesn't exist in our compartment list, treat as root
+      const parentExists = compartmentMap.has(c.compartment_id);
+      return !parentExists;
+    });
+    
+    console.log('🌳 Found root compartments:', roots.map(r => `${r.name} (${r.id})`));
     
     const addToHierarchy = (comp: Compartment, level: number = 0) => {
-      // Find children for this compartment
+      // Find direct children for this compartment
       const children = compartments.filter(c => c.compartment_id === comp.id);
       const hasChildren = children.length > 0;
       
       hierarchy.push({ ...comp, level, hasChildren });
       
-      // Recursively add children, sorted by name
+      // Recursively add children, sorted by name for consistent ordering
       children
         .sort((a, b) => a.name.localeCompare(b.name))
         .forEach(child => addToHierarchy(child, level + 1));
@@ -74,13 +84,16 @@ export function CompartmentSelector({
       .sort((a, b) => a.name.localeCompare(b.name))
       .forEach(root => addToHierarchy(root, 0));
     
-    // Add any orphaned compartments at level 0
+    // Handle orphaned compartments (safety net)
     const processedIds = new Set(hierarchy.map(h => h.id));
     const orphaned = compartments
       .filter(comp => !processedIds.has(comp.id))
       .sort((a, b) => a.name.localeCompare(b.name));
     
-    orphaned.forEach(comp => addToHierarchy(comp, 0));
+    if (orphaned.length > 0) {
+      console.warn('Found orphaned compartments (no valid parent-child relationship):', orphaned);
+      orphaned.forEach(comp => addToHierarchy(comp, 0));
+    }
     
     return hierarchy;
   };
@@ -145,33 +158,60 @@ export function CompartmentSelector({
                       onCompartmentChange(compartment.id);
                       setIsOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-150 ${
+                    className={`w-full text-left py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-150 ${
                       isSelected ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'
                     }`}
-                    style={{ paddingLeft: `${12 + (compartment.level * 16)}px` }}
+                    style={{ paddingLeft: `${8}px`, paddingRight: `${12}px` }}
                   >
                     <div className="flex items-center">
-                      {/* Hierarchy indicators */}
+                      {/* Enhanced hierarchy indicators with tree-like structure */}
                       {compartment.level > 0 && (
-                        <span className="text-gray-400 mr-2">└─</span>
+                        <div className="flex items-center text-gray-400 mr-1">
+                          {/* Create indentation lines for deeper levels */}
+                          {Array.from({ length: compartment.level - 1 }).map((_, i) => (
+                            <span key={i} className="w-4 text-center">│</span>
+                          ))}
+                          <span className="w-4">├─</span>
+                        </div>
                       )}
+                      
+                      {/* Parent/Child type indicator */}
+                      <div className="flex items-center mr-2">
+                        {compartment.level === 0 ? (
+                          <i className="fas fa-home text-blue-500 w-4 text-center" title="Root Tenancy"></i>
+                        ) : compartment.hasChildren ? (
+                          <i className="fas fa-folder text-yellow-500 w-4 text-center" title="Parent Compartment"></i>
+                        ) : (
+                          <i className="fas fa-cube text-gray-500 w-4 text-center" title="Child Compartment"></i>
+                        )}
+                      </div>
                       
                       {/* Status indicator */}
                       <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
                         compartment.lifecycle_state === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400'
                       }`}></span>
                       
-                      {/* Compartment name */}
-                      <span className="flex-1">{compartment.name}</span>
+                      {/* Compartment name with level styling */}
+                      <span className={`flex-1 ${
+                        compartment.level === 0 
+                          ? 'font-semibold text-blue-700 dark:text-blue-300' 
+                          : compartment.hasChildren 
+                            ? 'font-medium' 
+                            : 'font-normal'
+                      }`}>
+                        {compartment.name}
+                      </span>
                       
-                      {/* Children indicator */}
+                      {/* Children count indicator */}
                       {compartment.hasChildren && (
-                        <span className="text-gray-400 ml-2">📁</span>
+                        <span className="text-xs text-gray-500 ml-2 bg-gray-100 dark:bg-gray-600 px-1 rounded">
+                          {compartments.filter(c => c.compartment_id === compartment.id).length}
+                        </span>
                       )}
                       
                       {/* State indicator for non-active */}
                       {compartment.lifecycle_state !== 'ACTIVE' && (
-                        <span className="text-xs text-gray-500 ml-2">({compartment.lifecycle_state})</span>
+                        <span className="text-xs text-orange-500 ml-2 font-medium">({compartment.lifecycle_state})</span>
                       )}
                     </div>
                   </button>
