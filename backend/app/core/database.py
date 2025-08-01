@@ -28,7 +28,11 @@ def get_db():
 def create_tables():
     """Create all database tables"""
     from app.models.user import Base as UserBase
+    from app.models.remediation import Base as RemediationBase
+    
+    # Create all tables from all models
     UserBase.metadata.create_all(bind=engine)
+    RemediationBase.metadata.create_all(bind=engine)
 
 # Initialize default roles
 def init_default_roles():

@@ -1,5 +1,7 @@
 from .auth_service import AuthService
-from .monitoring_service import MonitoringService, get_monitoring_service
-from .genai_service import GenAIService, genai_service
+from .cloud_service import OCIService
+from .genai_service import genai_service
+from .monitoring_service import get_monitoring_service
+from .remediation_service import remediation_service
 
-__all__ = ["AuthService", "MonitoringService", "get_monitoring_service", "GenAIService", "genai_service"] 
+__all__ = ["AuthService", "OCIService", "genai_service", "get_monitoring_service", "remediation_service"] 

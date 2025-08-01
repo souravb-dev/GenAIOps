@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -11,6 +11,7 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 api_router.include_router(cloud.router, prefix="/cloud", tags=["cloud-operations"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(genai.router, prefix="/genai", tags=["artificial-intelligence"])
+api_router.include_router(remediation.router, prefix="/remediation", tags=["remediation"])
 
 # Include gateway routes
 gateway = get_gateway()
@@ -33,6 +34,7 @@ async def api_root():
             "real-time-notifications",
             "ai-powered-analytics",
             "intelligent-remediation",
+            "automated-remediation",
             "conversational-ai"
         ],
         "endpoints": {
@@ -42,7 +44,8 @@ async def api_root():
             "gateway": "/gateway",
             "cloud": "/cloud",
             "notifications": "/notifications",
-            "genai": "/genai"
+            "genai": "/genai",
+            "remediation": "/remediation"
         },
         "microservices": {
             "authentication": "User management and JWT-based auth",
@@ -50,6 +53,7 @@ async def api_root():
             "kubernetes": "Pod and cluster monitoring",
             "security": "Alert management and remediation",
             "cost-analysis": "Resource cost optimization",
-            "genai": "AI-powered insights, chat, and intelligent automation"
+            "genai": "AI-powered insights, chat, and intelligent automation",
+            "remediation": "Automated infrastructure remediation with approval workflows"
         }
     } 

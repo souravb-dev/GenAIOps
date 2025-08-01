@@ -9,7 +9,6 @@ from .auth import (
     RoleResponse,
     UserWithRoles
 )
-
 from .genai import (
     PromptTypeEnum,
     GenAIRequestSchema,
@@ -28,6 +27,15 @@ from .genai import (
     HealthResponseSchema,
     ErrorResponseSchema,
     SuccessResponseSchema
+)
+from .remediation import (
+    RemediationActionBase, RemediationActionCreate, RemediationActionUpdate, RemediationAction,
+    RemediationAuditLogBase, RemediationAuditLogCreate, RemediationAuditLog,
+    ApprovalWorkflowBase, ApprovalWorkflowCreate, ApprovalWorkflow,
+    ApprovalStepBase, ApprovalStepCreate, ApprovalStepUpdate, ApprovalStep,
+    ActionQueueBase, ActionQueueCreate, ActionQueueUpdate, ActionQueue,
+    ActionStatusResponse, ActionListResponse, ExecutionResult,
+    ApprovalRequest, ExecuteActionRequest, ActionTypeInfo, SystemConfiguration
 )
 
 __all__ = [
@@ -56,5 +64,30 @@ __all__ = [
     "PromptTypesResponse",
     "HealthResponseSchema",
     "ErrorResponseSchema",
-    "SuccessResponseSchema"
+    "SuccessResponseSchema",
+    "RemediationActionBase",
+    "RemediationActionCreate",
+    "RemediationActionUpdate",
+    "RemediationAction",
+    "RemediationAuditLogBase",
+    "RemediationAuditLogCreate",
+    "RemediationAuditLog",
+    "ApprovalWorkflowBase",
+    "ApprovalWorkflowCreate",
+    "ApprovalWorkflow",
+    "ApprovalStepBase",
+    "ApprovalStepCreate",
+    "ApprovalStepUpdate",
+    "ApprovalStep",
+    "ActionQueueBase",
+    "ActionQueueCreate",
+    "ActionQueueUpdate",
+    "ActionQueue",
+    "ActionStatusResponse",
+    "ActionListResponse",
+    "ExecutionResult",
+    "ApprovalRequest",
+    "ExecuteActionRequest",
+    "ActionTypeInfo",
+    "SystemConfiguration"
 ] 
