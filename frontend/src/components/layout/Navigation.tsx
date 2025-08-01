@@ -36,6 +36,14 @@ const navigationItems: NavigationItem[] = [
     description: 'Real-time metrics and alerts'
   },
   {
+    id: 'alerts',
+    name: 'Alerts & Insights',
+    path: '/alerts',
+    icon: 'fas fa-exclamation-triangle',
+    requiredPermissions: ['can_view_alerts'],
+    description: 'Alert management with AI insights'
+  },
+  {
     id: 'kubernetes',
     name: 'Kubernetes',
     path: '/kubernetes',
@@ -85,6 +93,7 @@ export function Navigation() {
       'can_view_dashboard': permissions.can_view_dashboard,
       'can_view_resources': permissions.can_view_dashboard, // For now, map to dashboard
       'can_view_monitoring': permissions.can_view_alerts,
+      'can_view_alerts': permissions.can_view_alerts, // Add mapping for alerts & insights
       'can_view_kubernetes': permissions.can_view_pod_analyzer,
       'can_view_costs': permissions.can_view_cost_analyzer,
       'can_manage_automation': permissions.can_execute_remediation,

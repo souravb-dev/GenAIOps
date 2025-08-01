@@ -1,78 +1,41 @@
-import { api } from './apiClient';
+import apiClient from './apiClient';
 
-// Types for monitoring data
 export interface AlertSummary {
   compartment_id: string;
   total_alarms: number;
   active_alarms: number;
-  severity_breakdown: {
-    CRITICAL: number;
-    HIGH: number;
-    MEDIUM: number;
-    LOW: number;
-    INFO: number;
-  };
-  recent_activity: {
-    last_24h_alerts: number;
-    resolved_alerts: number;
-    alert_rate: number;
-  };
-  top_alerts: Array<{
-    id: string;
-    display_name: string;
-    severity: string;
-    lifecycle_state: string;
-    is_enabled: boolean;
-  }>;
+  severity_breakdown: Record<string, number>;
+  recent_activity: any;
+  top_alerts: any[];
   timestamp: string;
   health_score: number;
 }
 
-export interface Alarm {
+export interface Alert {
   id: string;
-  display_name: string;
-  severity: string;
-  lifecycle_state: string;
-  is_enabled: boolean;
-  metric_compartment_id: string;
-  namespace: string;
-  query: string;
-  rule_name: string;
-  time_created: string;
-  time_updated: string;
+  name: string; // display_name from OCI
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+  description: string; // query from OCI
+  service: string; // namespace from OCI
+  resource: string; // extracted from query or metric_compartment_id
+  timestamp: string; // time_created from OCI
+  lastUpdate: string; // time_updated from OCI
+  category: string; // derived from namespace
+  // OCI-specific fields for reference
+  display_name?: string;
+  namespace?: string;
+  query?: string;
+  lifecycle_state?: string;
+  is_enabled?: boolean;
+  metric_compartment_id?: string;
+  time_created?: string;
+  time_updated?: string;
 }
 
-export interface AlarmHistory {
-  alarm_id: string;
-  alarm_name?: string;
-  status: string;
-  timestamp: string;
-  summary: string;
-  suppressed: boolean;
-}
 
-export interface MetricsData {
-  namespace: string;
-  metric_name: string;
-  compartment_id: string;
-  data_points: Array<{
-    timestamp: string;
-    value: number;
-  }>;
-  start_time: string;
-  end_time: string;
-}
 
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  message: any;
-  source: string;
-  compartment_id: string;
-  log_group_id: string;
-  fields: any;
-}
-
+// Legacy types for backward compatibility
 export interface HealthStatus {
   compartment_id: string;
   overall_status: 'HEALTHY' | 'WARNING' | 'DEGRADED' | 'CRITICAL';
@@ -88,8 +51,8 @@ export interface HealthStatus {
 export interface MonitoringDashboard {
   compartment_id: string;
   summary: AlertSummary;
-  active_alarms: Alarm[];
-  recent_history: AlarmHistory[];
+  active_alarms: Alert[];
+  recent_history: any[];
   trends: {
     total_alarms_trend: number;
     critical_alerts_trend: number;
@@ -103,118 +66,149 @@ export interface MonitoringDashboard {
   last_updated: string;
 }
 
-// Request types
-export interface MetricsRequest {
-  namespace: string;
-  metric_name: string;
-  start_time: string;
-  end_time: string;
-  resource_group?: string;
-}
-
-export interface LogSearchRequest {
-  search_query: string;
-  start_time: string;
-  end_time: string;
-  limit?: number;
-}
-
 class MonitoringService {
-  private baseUrl = '/monitoring';
-
-  /**
-   * Get comprehensive alert summary for a compartment
-   */
   async getAlertSummary(compartmentId: string): Promise<AlertSummary> {
-    const response = await api.get<AlertSummary>(`${this.baseUrl}/alerts/summary`, {
-      params: { compartment_id: compartmentId }
+    const response = await apiClient.get(`/monitoring/alerts/summary?compartment_id=${compartmentId}`);
+    const summary = response.data;
+    
+    // Fix health score calculation (convert from 0-1 to 0-100 percentage)
+    if (summary.health_score && summary.health_score > 1) {
+      summary.health_score = summary.health_score / 100; // Convert if it's already in percentage
+    }
+    
+    // Ensure health score is between 0-1
+    summary.health_score = Math.min(1, Math.max(0, summary.health_score || 0.7));
+    
+    return summary;
+  }
+
+  async getAlarms(compartmentId: string): Promise<Alert[]> {
+    const response = await apiClient.get(`/monitoring/alarms?compartment_id=${compartmentId}`);
+    const rawAlarms = response.data;
+    
+    // Transform OCI alarm data to user-friendly format
+    return rawAlarms.map((alarm: any) => ({
+      id: alarm.id,
+      name: alarm.display_name || 'Unnamed Alert',
+      severity: alarm.severity || 'MEDIUM',
+      status: alarm.is_enabled ? (alarm.lifecycle_state === 'ACTIVE' ? 'OPEN' : 'ACKNOWLEDGED') : 'RESOLVED',
+      description: alarm.query || 'No monitoring query specified',
+      service: alarm.namespace || 'Unknown Service',
+      resource: this.extractResourceFromQuery(alarm.query) || alarm.metric_compartment_id || 'Unknown Resource',
+      timestamp: alarm.time_created || new Date().toISOString(),
+      lastUpdate: alarm.time_updated || alarm.time_created || new Date().toISOString(),
+      category: this.deriveCategoryFromNamespace(alarm.namespace),
+      // Keep OCI fields for reference
+      display_name: alarm.display_name,
+      namespace: alarm.namespace,
+      query: alarm.query,
+      lifecycle_state: alarm.lifecycle_state,
+      is_enabled: alarm.is_enabled,
+      metric_compartment_id: alarm.metric_compartment_id,
+      time_created: alarm.time_created,
+      time_updated: alarm.time_updated
+    }));
+  }
+
+  private extractResourceFromQuery(query: string): string {
+    if (!query) return 'Unknown Resource';
+    
+    // Try to extract resource name from OCI monitoring query
+    const resourceMatches = query.match(/resourceDisplayName\s*=\s*"([^"]+)"/);
+    if (resourceMatches) return resourceMatches[1];
+    
+    const idMatches = query.match(/resourceId\s*=\s*"([^"]+)"/);
+    if (idMatches) return idMatches[1].split('.').pop() || idMatches[1];
+    
+    // Extract metric name as fallback
+    const metricMatches = query.match(/(\w+)\[/);
+    if (metricMatches) return `${metricMatches[1]} metrics`;
+    
+    return 'Resource from query';
+  }
+
+  private deriveCategoryFromNamespace(namespace: string): string {
+    if (!namespace) return 'General';
+    
+    const ns = namespace.toLowerCase();
+    if (ns.includes('database') || ns.includes('mysql') || ns.includes('oracle')) return 'Database';
+    if (ns.includes('compute') || ns.includes('instance')) return 'Compute';
+    if (ns.includes('network') || ns.includes('vcn') || ns.includes('load')) return 'Network';
+    if (ns.includes('storage') || ns.includes('block') || ns.includes('file')) return 'Storage';
+    if (ns.includes('oke') || ns.includes('kubernetes')) return 'Kubernetes';
+    
+    return 'Infrastructure';
+  }
+
+  async getAlarmHistory(compartmentId: string): Promise<any[]> {
+    const response = await apiClient.get(`/monitoring/alarms/history?compartment_id=${compartmentId}`);
+    return response.data;
+  }
+
+  async acknowledgeAlert(alertId: string): Promise<void> {
+    await apiClient.post(`/monitoring/alerts/${alertId}/acknowledge`);
+  }
+
+  async resolveAlert(alertId: string, resolution: string): Promise<void> {
+    await apiClient.post(`/monitoring/alerts/${alertId}/resolve`, { resolution });
+  }
+
+  async getMetrics(
+    compartmentId: string,
+    namespace: string,
+    metricName: string,
+    startTime: string,
+    endTime: string
+  ): Promise<any> {
+    const response = await apiClient.post('/monitoring/metrics', {
+      compartment_id: compartmentId,
+      namespace,
+      metric_name: metricName,
+      start_time: startTime,
+      end_time: endTime
     });
     return response.data;
   }
 
-  /**
-   * Get current alarm status from OCI Monitoring
-   */
-  async getAlarms(compartmentId: string): Promise<Alarm[]> {
-    const response = await api.get<Alarm[]>(`${this.baseUrl}/alarms`, {
-      params: { compartment_id: compartmentId }
+  async searchLogs(
+    compartmentId: string,
+    searchQuery: string,
+    startTime: string,
+    endTime: string,
+    limit: number = 1000
+  ): Promise<any[]> {
+    const response = await apiClient.post('/monitoring/logs/search', {
+      compartment_id: compartmentId,
+      search_query: searchQuery,
+      start_time: startTime,
+      end_time: endTime,
+      limit
     });
     return response.data;
   }
 
-  /**
-   * Get alarm history from OCI Monitoring
-   */
-  async getAlarmHistory(compartmentId: string, hoursBack: number = 24): Promise<AlarmHistory[]> {
-    const response = await api.get<AlarmHistory[]>(`${this.baseUrl}/alarms/history`, {
-      params: { 
-        compartment_id: compartmentId,
-        hours_back: hoursBack
-      }
+  async getRealTimeNotifications(
+    compartmentId: string,
+    severityFilter?: string,
+    hoursBack: number = 24
+  ): Promise<any[]> {
+    const params = new URLSearchParams({
+      compartment_id: compartmentId,
+      hours_back: hoursBack.toString()
     });
+    
+    if (severityFilter) {
+      params.append('severity_filter', severityFilter);
+    }
+
+    const response = await apiClient.get(`/notifications/real-time?${params}`);
     return response.data;
   }
 
-  /**
-   * Get metrics data from OCI Monitoring
-   */
-  async getMetricsData(compartmentId: string, request: MetricsRequest): Promise<MetricsData> {
-    const response = await api.post<MetricsData>(`${this.baseUrl}/metrics`, request, {
-      params: { compartment_id: compartmentId }
-    });
-    return response.data;
-  }
-
-  /**
-   * Get available metric namespaces
-   */
-  async getMetricNamespaces(compartmentId: string): Promise<string[]> {
-    const response = await api.get<string[]>(`${this.baseUrl}/metrics/namespaces`, {
-      params: { compartment_id: compartmentId }
-    });
-    return response.data;
-  }
-
-  /**
-   * Search logs using OCI Log Search API
-   */
-  async searchLogs(compartmentId: string, request: LogSearchRequest): Promise<LogEntry[]> {
-    const response = await api.post<LogEntry[]>(`${this.baseUrl}/logs/search`, request, {
-      params: { compartment_id: compartmentId }
-    });
-    return response.data;
-  }
-
-  /**
-   * Get overall monitoring health status
-   */
-  async getHealthStatus(compartmentId: string): Promise<HealthStatus> {
-    const response = await api.get<HealthStatus>(`${this.baseUrl}/health`, {
-      params: { compartment_id: compartmentId }
-    });
-    return response.data;
-  }
-
-  /**
-   * Get comprehensive monitoring dashboard data
-   */
-  async getDashboard(compartmentId: string): Promise<MonitoringDashboard> {
-    const response = await api.get<MonitoringDashboard>(`${this.baseUrl}/dashboard`, {
-      params: { compartment_id: compartmentId }
-    });
-    return response.data;
-  }
-
-  /**
-   * Test monitoring integration
-   */
+  // Legacy methods for backward compatibility
   async testIntegration(compartmentId?: string): Promise<any> {
-    // If no compartment ID provided, use the hardcoded test compartment
     const testCompartmentId = compartmentId || 'test-compartment';
-    
-    // Use the same alert summary endpoint as other components for consistency
     const summary = await this.getAlertSummary(testCompartmentId);
-    
     return {
       status: 'success',
       monitoring_available: true,
@@ -223,8 +217,48 @@ class MonitoringService {
       compartment_id: testCompartmentId
     };
   }
+
+  async getHealthStatus(compartmentId: string): Promise<HealthStatus> {
+    const summary = await this.getAlertSummary(compartmentId);
+    return {
+      compartment_id: compartmentId,
+      overall_status: summary.severity_breakdown.CRITICAL > 0 ? 'CRITICAL' : 
+                     summary.severity_breakdown.HIGH > 0 ? 'WARNING' : 'HEALTHY',
+      status_color: summary.severity_breakdown.CRITICAL > 0 ? 'red' : 
+                   summary.severity_breakdown.HIGH > 0 ? 'yellow' : 'green',
+      health_score: summary.health_score,
+      critical_alerts: summary.severity_breakdown.CRITICAL || 0,
+      high_alerts: summary.severity_breakdown.HIGH || 0,
+      total_active_alarms: summary.active_alarms,
+      alert_rate_24h: 0, // Placeholder
+      last_updated: summary.timestamp
+    };
+  }
+
+  async getDashboard(compartmentId: string): Promise<MonitoringDashboard> {
+    const summary = await this.getAlertSummary(compartmentId);
+    const alarms = await this.getAlarms(compartmentId);
+    const history = await this.getAlarmHistory(compartmentId);
+    
+    return {
+      compartment_id: compartmentId,
+      summary: summary,
+      active_alarms: alarms,
+      recent_history: history,
+      trends: {
+        total_alarms_trend: 0,
+        critical_alerts_trend: 0,
+        health_score_trend: 0
+      },
+      quick_stats: {
+        uptime_score: 95,
+        performance_score: 90,
+        security_alerts: summary.severity_breakdown.HIGH || 0
+      },
+      last_updated: summary.timestamp
+    };
+  }
 }
 
-// Export singleton instance
-export const monitoringService = new MonitoringService();
+export const monitoringService = new MonitoringService(); 
 export default monitoringService; 

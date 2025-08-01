@@ -243,4 +243,7 @@ export function useFileSystems(compartmentId: string): UseQueryResult<CloudResou
     enabled: !!compartmentId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
-} 
+}
+
+// Export the cloudApi instance for direct use
+export const cloudService = cloudApi; 

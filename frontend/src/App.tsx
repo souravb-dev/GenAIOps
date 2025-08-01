@@ -8,6 +8,7 @@ import { LoginForm } from './components/auth/LoginForm';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardPage } from './components/pages/DashboardPage';
 import { MonitoringPage } from './components/pages/MonitoringPage';
+import { AlertsPage } from './components/pages/AlertsPage';
 import './App.css';
 import { NotificationProvider } from './contexts/NotificationContext';
 
@@ -130,6 +131,17 @@ function App() {
                   <ProtectedRoute requiredPermissions={['can_view_alerts']}>
                     <AppLayout>
                       <MonitoringPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/alerts"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_alerts']}>
+                    <AppLayout>
+                      <AlertsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

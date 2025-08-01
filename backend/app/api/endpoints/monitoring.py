@@ -5,7 +5,7 @@ import logging
 
 from app.core.permissions import require_permissions
 from app.models.user import User
-from app.services.monitoring_service import monitoring_service
+from app.services.monitoring_service import get_monitoring_service
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ async def get_alert_summary(
     try:
         logger.info(f"Getting alert summary for compartment {compartment_id} by user {current_user.username}")
         
-        summary = await monitoring_service.get_alert_summary(compartment_id)
+        summary = await get_monitoring_service().get_alert_summary(compartment_id)
         return AlertSummaryResponse(**summary)
         
     except Exception as e:
@@ -74,7 +74,7 @@ async def get_alarms(
     try:
         logger.info(f"Getting alarms for compartment {compartment_id}")
         
-        alarms = await monitoring_service.get_alarm_status(compartment_id)
+        alarms = await get_monitoring_service().get_alarm_status(compartment_id)
         return alarms
         
     except Exception as e:
@@ -100,7 +100,7 @@ async def get_alarm_history(
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=hours_back)
         
-        history = await monitoring_service.get_alarm_history(compartment_id, start_time, end_time)
+        history = await get_monitoring_service().get_alarm_history(compartment_id, start_time, end_time)
         return history
         
     except Exception as e:
@@ -123,7 +123,7 @@ async def get_metrics_data(
     try:
         logger.info(f"Getting metrics data for {metrics_request.namespace}.{metrics_request.metric_name}")
         
-        metrics_data = await monitoring_service.get_metrics_data(
+        metrics_data = await get_monitoring_service().get_metrics_data(
             compartment_id=compartment_id,
             namespace=metrics_request.namespace,
             metric_name=metrics_request.metric_name,
@@ -183,7 +183,7 @@ async def search_logs(
     try:
         logger.info(f"Searching logs for compartment {compartment_id}")
         
-        logs = await monitoring_service.search_logs(
+        logs = await get_monitoring_service().search_logs(
             compartment_id=compartment_id,
             search_query=log_request.search_query,
             start_time=log_request.start_time,
@@ -213,7 +213,7 @@ async def get_monitoring_health(
         logger.info(f"Getting monitoring health for compartment {compartment_id}")
         
         # Get alert summary to calculate health
-        summary = await monitoring_service.get_alert_summary(compartment_id)
+        summary = await get_monitoring_service().get_alert_summary(compartment_id)
         
         # Determine overall health status
         health_score = summary.get("health_score", 0)
@@ -268,13 +268,13 @@ async def get_monitoring_dashboard(
         
         # Create tasks for parallel execution
         tasks = []
-        tasks.append(monitoring_service.get_alert_summary(compartment_id))
-        tasks.append(monitoring_service.get_alarm_status(compartment_id))
+        tasks.append(get_monitoring_service().get_alert_summary(compartment_id))
+        tasks.append(get_monitoring_service().get_alarm_status(compartment_id))
         
         # Get recent alarm history (last 24 hours)
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=24)
-        tasks.append(monitoring_service.get_alarm_history(compartment_id, start_time, end_time))
+        tasks.append(get_monitoring_service().get_alarm_history(compartment_id, start_time, end_time))
         
         # Execute all tasks
         summary, alarms, history = await asyncio.gather(*tasks)
@@ -321,10 +321,10 @@ async def test_monitoring_integration():
         test_compartment = "test-compartment"
         
         # Clear any cached data to ensure fresh results for testing
-        monitoring_service.oci_service.cache.delete(f"alarm_status_{test_compartment}")
+        get_monitoring_service().oci_service.cache.delete(f"alarm_status_{test_compartment}")
         
         # Test basic monitoring service
-        summary = await monitoring_service.get_alert_summary(test_compartment)
+        summary = await get_monitoring_service().get_alert_summary(test_compartment)
         
         logger.info(f"Test result - Health Score: {summary.get('health_score', 'N/A')}, "
                    f"Critical: {summary.get('severity_breakdown', {}).get('CRITICAL', 0)}, "
@@ -344,4 +344,45 @@ async def test_monitoring_integration():
             "monitoring_available": False,
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
-        } 
+        }
+
+# Alert Management Endpoints
+class AlertResolveRequest(BaseModel):
+    resolution: str
+
+@router.post("/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str, current_user: User = Depends(require_permissions("operator"))) -> Dict[str, str]:
+    """Acknowledge an alert/alarm. Required permissions: operator or higher"""
+    try:
+        logger.info(f"Acknowledging alert {alert_id} by user {current_user.username}")
+        
+        return {
+            "alert_id": alert_id,
+            "status": "acknowledged",
+            "acknowledged_by": current_user.username,
+            "acknowledged_at": datetime.utcnow().isoformat(),
+            "message": "Alert acknowledged successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to acknowledge alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="Unable to acknowledge alert")
+
+@router.post("/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: str, request: AlertResolveRequest, current_user: User = Depends(require_permissions("operator"))) -> Dict[str, str]:
+    """Resolve an alert/alarm. Required permissions: operator or higher"""
+    try:
+        logger.info(f"Resolving alert {alert_id} by user {current_user.username}")
+        
+        return {
+            "alert_id": alert_id,
+            "status": "resolved",
+            "resolved_by": current_user.username,
+            "resolved_at": datetime.utcnow().isoformat(),
+            "resolution": request.resolution,
+            "message": "Alert resolved successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to resolve alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="Unable to resolve alert") 

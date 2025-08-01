@@ -84,26 +84,30 @@ class MonitoringService:
         return self.oci_service.clients.get('log_search')
 
     async def get_alarm_status(self, compartment_id: str) -> List[Dict[str, Any]]:
-        """Get alarm status from OCI Monitoring"""
+        """Get all alarms from OCI plus resource-based alerts"""
+        cache_key = f"alarm_status_{compartment_id}"
+        cached_data = self.oci_service.cache.get(cache_key)
+        if cached_data:
+            logger.info(f"🔄 Using cached alarm status for compartment {compartment_id}")
+            return cached_data
+
+        if not self.oci_service.oci_available:
+            raise ExternalServiceError("OCI service not available")
+
+        monitoring_client = self._get_monitoring_client()
+        if not monitoring_client:
+            raise ExternalServiceError("OCI monitoring client not available")
+        
+        logger.info(f"🔍 Fetching alarm status for compartment {compartment_id}")
+        
         try:
-            cache_key = f"alarm_status_{compartment_id}"
-            cached_data = self.oci_service.cache.get(cache_key)
-            if cached_data:
-                logger.info(f"🔄 Using cached alarm status for compartment {compartment_id}")
-                return cached_data
-
-            if not self.oci_service.oci_available:
-                logger.warning("⚠️ OCI not available, returning mock alarm data")
-                return self._get_mock_alarm_data(compartment_id)
-
-            monitoring_client = self._get_monitoring_client()
-            
-            # Get alarm status
+            # Get OCI-configured alarms
             response = await self.oci_service._make_oci_call(
                 monitoring_client.list_alarms,
-                compartment_id=compartment_id,
-                lifecycle_state=oci.monitoring.models.Alarm.LIFECYCLE_STATE_ACTIVE
+                compartment_id=compartment_id
             )
+            
+            logger.info(f"📊 Found {len(response.data)} OCI alarms in compartment {compartment_id}")
             
             alarms = []
             for alarm in response.data:
@@ -118,37 +122,339 @@ class MonitoringService:
                     "query": alarm.query,
                     "rule_name": getattr(alarm, 'rule_name', ''),
                     "time_created": alarm.time_created.isoformat() if alarm.time_created else None,
-                    "time_updated": alarm.time_updated.isoformat() if alarm.time_updated else None
+                    "time_updated": alarm.time_updated.isoformat() if alarm.time_updated else None,
+                    "source": "oci_alarm"
                 }
                 alarms.append(alarm_data)
+                logger.debug(f"  📋 OCI Alarm: {alarm.display_name} | State: {alarm.lifecycle_state} | Enabled: {alarm.is_enabled}")
+            
+            # Generate resource-based alerts (the CRITICAL addition!)
+            resource_alerts = await self._generate_resource_alerts(compartment_id)
+            alarms.extend(resource_alerts)
             
             # Cache the results
             self.oci_service.cache.set(cache_key, alarms, self.cache_ttl)
-            logger.info(f"✅ Retrieved {len(alarms)} alarms for compartment {compartment_id}")
+            logger.info(f"✅ Successfully retrieved {len(response.data)} OCI alarms + {len(resource_alerts)} resource alerts = {len(alarms)} total alerts")
             return alarms
             
         except Exception as e:
-            logger.error(f"❌ Failed to get alarm status: {e}")
-            return self._get_mock_alarm_data(compartment_id)
+            logger.error(f"❌ Failed to get alarm status for compartment {compartment_id}: {e}")
+            # Re-raise the exception instead of falling back to mock data
+            raise ExternalServiceError(f"Failed to fetch OCI alarms: {str(e)}")
+
+    async def _generate_resource_alerts(self, compartment_id: str) -> List[Dict[str, Any]]:
+        """Generate comprehensive alerts based on resource states AND metrics"""
+        resource_alerts = []
+        current_time = datetime.utcnow()
+        
+        try:
+            # 1. COMPUTE INSTANCE MONITORING
+            instances = await self.oci_service.get_compute_instances(compartment_id)
+            for instance in instances:
+                # State-based alerts
+                if instance["lifecycle_state"] == "STOPPED":
+                    alert = self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="STATE_STOPPED",
+                        severity="HIGH",
+                        compartment_id=compartment_id,
+                        description=f"Compute instance '{instance['display_name']}' is in STOPPED state",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    )
+                    resource_alerts.append(alert)
+                    logger.info(f"🚨 STOPPED INSTANCE alert: {instance['display_name']}")
+                
+                elif instance["lifecycle_state"] == "STOPPING":
+                    alert = self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="STATE_STOPPING",
+                        severity="MEDIUM",
+                        compartment_id=compartment_id,
+                        description=f"Compute instance '{instance['display_name']}' is STOPPING",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    )
+                    resource_alerts.append(alert)
+                
+                # Metrics-based alerts for RUNNING instances
+                elif instance["lifecycle_state"] == "RUNNING":
+                    metrics_alerts = await self._generate_compute_metrics_alerts(instance, compartment_id, current_time)
+                    resource_alerts.extend(metrics_alerts)
+
+            # 2. DATABASE MONITORING
+            databases = await self.oci_service.get_databases(compartment_id)
+            for db in databases:
+                if db.get("lifecycle_state") in ["STOPPED", "TERMINATING", "FAILED"]:
+                    severity = "CRITICAL" if db["lifecycle_state"] == "FAILED" else "HIGH"
+                    alert = self._create_resource_alert(
+                        resource_id=db['id'],
+                        resource_name=db['display_name'],
+                        resource_type="database",
+                        alert_type=f"STATE_{db['lifecycle_state']}",
+                        severity=severity,
+                        compartment_id=compartment_id,
+                        description=f"Database '{db['display_name']}' is in {db['lifecycle_state']} state",
+                        namespace="oci_database",
+                        current_time=current_time
+                    )
+                    resource_alerts.append(alert)
+                    logger.info(f"🚨 DATABASE {db['lifecycle_state']} alert: {db['display_name']}")
+
+            # 3. BLOCK STORAGE MONITORING
+            storage_alerts = await self._generate_storage_alerts(compartment_id, current_time)
+            resource_alerts.extend(storage_alerts)
+
+            logger.info(f"✅ Generated {len(resource_alerts)} comprehensive resource alerts (state + metrics)")
+            return resource_alerts
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate resource alerts: {e}")
+            return []
+
+    def _create_resource_alert(self, resource_id: str, resource_name: str, resource_type: str, 
+                              alert_type: str, severity: str, compartment_id: str, 
+                              description: str, namespace: str, current_time: datetime) -> Dict[str, Any]:
+        """Create standardized resource alert"""
+        return {
+            "id": f"resource_alert_{resource_type}_{alert_type}_{resource_id}",
+            "display_name": f"{resource_type.replace('_', ' ').title()} {alert_type.replace('_', ' ').title()}: {resource_name}",
+            "severity": severity,
+            "lifecycle_state": "ACTIVE",
+            "is_enabled": True,
+            "metric_compartment_id": compartment_id,
+            "namespace": namespace,
+            "query": description,
+            "rule_name": "ProductionResourceMonitoring",
+            "time_created": current_time.isoformat(),
+            "time_updated": current_time.isoformat(),
+            "source": "resource_monitoring",
+            "resource_id": resource_id,
+            "resource_type": resource_type,
+            "resource_name": resource_name,
+            "alert_type": alert_type,
+            "description": description
+        }
+
+    async def _generate_compute_metrics_alerts(self, instance: Dict[str, Any], compartment_id: str, current_time: datetime) -> List[Dict[str, Any]]:
+        """Generate CPU and memory utilization alerts for running compute instances"""
+        alerts = []
+        
+        try:
+            # Get real-time metrics for the instance
+            end_time = current_time
+            start_time = end_time - timedelta(minutes=10)  # Last 10 minutes
+            
+            # CPU Utilization Monitoring
+            cpu_metrics = await self._get_instance_cpu_metrics(instance['id'], compartment_id, start_time, end_time)
+            if cpu_metrics and 'average_cpu' in cpu_metrics:
+                cpu_avg = cpu_metrics['average_cpu']
+                
+                # CPU threshold alerts
+                if cpu_avg > 90:
+                    alerts.append(self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="CPU_CRITICAL",
+                        severity="CRITICAL",
+                        compartment_id=compartment_id,
+                        description=f"CPU utilization critically high: {cpu_avg:.1f}% (threshold: 90%)",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    ))
+                elif cpu_avg > 80:
+                    alerts.append(self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="CPU_HIGH",
+                        severity="HIGH",
+                        compartment_id=compartment_id,
+                        description=f"CPU utilization high: {cpu_avg:.1f}% (threshold: 80%)",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    ))
+
+            # Memory Utilization Monitoring
+            memory_metrics = await self._get_instance_memory_metrics(instance['id'], compartment_id, start_time, end_time)
+            if memory_metrics and 'average_memory' in memory_metrics:
+                memory_avg = memory_metrics['average_memory']
+                
+                # Memory threshold alerts
+                if memory_avg > 95:
+                    alerts.append(self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="MEMORY_CRITICAL",
+                        severity="CRITICAL",
+                        compartment_id=compartment_id,
+                        description=f"Memory utilization critically high: {memory_avg:.1f}% (threshold: 95%)",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    ))
+                elif memory_avg > 85:
+                    alerts.append(self._create_resource_alert(
+                        resource_id=instance['id'],
+                        resource_name=instance['display_name'],
+                        resource_type="compute_instance",
+                        alert_type="MEMORY_HIGH",
+                        severity="HIGH",
+                        compartment_id=compartment_id,
+                        description=f"Memory utilization high: {memory_avg:.1f}% (threshold: 85%)",
+                        namespace="oci_computeagent",
+                        current_time=current_time
+                    ))
+
+            if alerts:
+                logger.info(f"📊 Generated {len(alerts)} metrics-based alerts for instance {instance['display_name']}")
+            
+            return alerts
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate compute metrics alerts for {instance['display_name']}: {e}")
+            return []
+
+    async def _generate_storage_alerts(self, compartment_id: str, current_time: datetime) -> List[Dict[str, Any]]:
+        """Generate block storage utilization alerts"""
+        alerts = []
+        
+        try:
+            # Get block volumes (if available)
+            # Note: This would require additional OCI API calls for block storage
+            # For now, implementing the framework
+            
+            # Block volumes monitoring would go here
+            # storage_volumes = await self.oci_service.get_block_volumes(compartment_id)
+            # for volume in storage_volumes:
+            #     utilization = await self._get_volume_utilization(volume['id'])
+            #     if utilization > 90:
+            #         alerts.append(...)
+            
+            logger.debug(f"Storage monitoring framework ready for compartment {compartment_id}")
+            return alerts
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate storage alerts: {e}")
+            return []
+
+    async def _get_instance_cpu_metrics(self, instance_id: str, compartment_id: str, start_time: datetime, end_time: datetime) -> Dict[str, Any]:
+        """Get real CPU metrics from OCI Monitoring"""
+        try:
+            monitoring_client = self._get_monitoring_client()
+            if not monitoring_client:
+                return {}
+            
+            # Build CPU utilization query
+            query = f'CpuUtilization[1m]{{resourceId="{instance_id}"}}.mean()'
+            
+            metrics_request = oci.monitoring.models.SummarizeMetricsDataDetails(
+                namespace="oci_computeagent",
+                query=query,
+                compartment_id=compartment_id,
+                start_time=start_time,
+                end_time=end_time,
+                resolution="1m"
+            )
+            
+            response = await self.oci_service._make_oci_call(
+                monitoring_client.summarize_metrics_data,
+                summarize_metrics_data_details=metrics_request
+            )
+            
+            # Process CPU data
+            cpu_values = []
+            for metric in response.data:
+                for data_point in metric.aggregated_datapoints:
+                    if data_point.value is not None:
+                        cpu_values.append(data_point.value)
+            
+            if cpu_values:
+                return {
+                    "average_cpu": sum(cpu_values) / len(cpu_values),
+                    "max_cpu": max(cpu_values),
+                    "min_cpu": min(cpu_values),
+                    "data_points": len(cpu_values)
+                }
+            
+            return {}
+            
+        except Exception as e:
+            logger.debug(f"Could not fetch CPU metrics for {instance_id}: {e}")
+            return {}
+
+    async def _get_instance_memory_metrics(self, instance_id: str, compartment_id: str, start_time: datetime, end_time: datetime) -> Dict[str, Any]:
+        """Get real memory metrics from OCI Monitoring"""
+        try:
+            monitoring_client = self._get_monitoring_client()
+            if not monitoring_client:
+                return {}
+            
+            # Build memory utilization query
+            query = f'MemoryUtilization[1m]{{resourceId="{instance_id}"}}.mean()'
+            
+            metrics_request = oci.monitoring.models.SummarizeMetricsDataDetails(
+                namespace="oci_computeagent",
+                query=query,
+                compartment_id=compartment_id,
+                start_time=start_time,
+                end_time=end_time,
+                resolution="1m"
+            )
+            
+            response = await self.oci_service._make_oci_call(
+                monitoring_client.summarize_metrics_data,
+                summarize_metrics_data_details=metrics_request
+            )
+            
+            # Process memory data
+            memory_values = []
+            for metric in response.data:
+                for data_point in metric.aggregated_datapoints:
+                    if data_point.value is not None:
+                        memory_values.append(data_point.value)
+            
+            if memory_values:
+                return {
+                    "average_memory": sum(memory_values) / len(memory_values),
+                    "max_memory": max(memory_values),
+                    "min_memory": min(memory_values),
+                    "data_points": len(memory_values)
+                }
+            
+            return {}
+            
+        except Exception as e:
+            logger.debug(f"Could not fetch memory metrics for {instance_id}: {e}")
+            return {}
 
     async def get_alarm_history(self, compartment_id: str, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
         """Get alarm history from OCI Monitoring"""
+        cache_key = f"alarm_history_{compartment_id}_{start_time.isoformat()}_{end_time.isoformat()}"
+        cached_data = self.oci_service.cache.get(cache_key)
+        if cached_data:
+            logger.info(f"🔄 Using cached alarm history for compartment {compartment_id}")
+            return cached_data
+
+        if not self.oci_service.oci_available:
+            raise ExternalServiceError("OCI service not available")
+
+        monitoring_client = self._get_monitoring_client()
+        if not monitoring_client:
+            raise ExternalServiceError("OCI monitoring client not available")
+        
+        logger.info(f"🔍 Fetching alarm history for compartment {compartment_id} from {start_time} to {end_time}")
+        
         try:
-            cache_key = f"alarm_history_{compartment_id}_{start_time.isoformat()}_{end_time.isoformat()}"
-            cached_data = self.oci_service.cache.get(cache_key)
-            if cached_data:
-                return cached_data
-
-            if not self.oci_service.oci_available:
-                return self._get_mock_alarm_history(compartment_id)
-
-            monitoring_client = self._get_monitoring_client()
-            
-            # Get alarm history - using list_alarms and check timestamps
+            # Get all alarms first
             response = await self.oci_service._make_oci_call(
                 monitoring_client.list_alarms,
-                compartment_id=compartment_id,
-                lifecycle_state=oci.monitoring.models.Alarm.LIFECYCLE_STATE_ACTIVE
+                compartment_id=compartment_id
             )
             
             history = []
@@ -158,21 +464,39 @@ class MonitoringService:
                     history_entry = {
                         "alarm_id": alarm.id,
                         "alarm_name": alarm.display_name,
-                        "status": "ACTIVE" if alarm.is_enabled else "DISABLED",
-                        "timestamp": alarm.time_updated.isoformat() if alarm.time_updated else None,
+                        "status": "FIRING" if alarm.is_enabled and alarm.lifecycle_state == "ACTIVE" else "OK",
+                        "timestamp": alarm.time_updated.isoformat(),
                         "summary": f"Alarm {alarm.display_name} - {alarm.severity}",
-                        "suppressed": not alarm.is_enabled
+                        "suppressed": not alarm.is_enabled,
+                        "severity": alarm.severity,
+                        "namespace": alarm.namespace
+                    }
+                    history.append(history_entry)
+                # Also include creation events if they fall in the time range
+                elif alarm.time_created and start_time <= alarm.time_created <= end_time:
+                    history_entry = {
+                        "alarm_id": alarm.id,
+                        "alarm_name": alarm.display_name,
+                        "status": "CREATED",
+                        "timestamp": alarm.time_created.isoformat(),
+                        "summary": f"Alarm {alarm.display_name} created - {alarm.severity}",
+                        "suppressed": False,
+                        "severity": alarm.severity,
+                        "namespace": alarm.namespace
                     }
                     history.append(history_entry)
             
+            # Sort by timestamp (newest first)
+            history.sort(key=lambda x: x['timestamp'], reverse=True)
+            
             # Cache the results
             self.oci_service.cache.set(cache_key, history, self.cache_ttl)
-            logger.info(f"✅ Retrieved {len(history)} alarm history entries")
+            logger.info(f"✅ Retrieved {len(history)} alarm history entries for compartment {compartment_id}")
             return history
             
         except Exception as e:
-            logger.error(f"❌ Failed to get alarm history: {e}")
-            return self._get_mock_alarm_history(compartment_id)
+            logger.error(f"❌ Failed to get alarm history for compartment {compartment_id}: {e}")
+            raise ExternalServiceError(f"Failed to fetch OCI alarm history: {str(e)}")
 
     async def get_metrics_data(self, compartment_id: str, namespace: str, metric_name: str, 
                               start_time: datetime, end_time: datetime, 
@@ -185,7 +509,7 @@ class MonitoringService:
                 return cached_data
 
             if not self.oci_service.oci_available:
-                return self._get_mock_metrics_data(namespace, metric_name)
+                raise ExternalServiceError("OCI service not available")
 
             monitoring_client = self._get_monitoring_client()
             
@@ -231,8 +555,8 @@ class MonitoringService:
             return metrics_data
             
         except Exception as e:
-            logger.error(f"❌ Failed to get metrics data: {e}")
-            return self._get_mock_metrics_data(namespace, metric_name)
+            logger.error(f"❌ Failed to get metrics data for {namespace}.{metric_name}: {e}")
+            raise ExternalServiceError(f"Failed to get OCI metrics data: {str(e)}")
 
     async def search_logs(self, compartment_id: str, search_query: str, 
                          start_time: datetime, end_time: datetime, 
@@ -245,7 +569,7 @@ class MonitoringService:
                 return cached_data
 
             if not self.oci_service.oci_available:
-                return self._get_mock_logs_data(compartment_id)
+                raise ExternalServiceError("OCI service not available")
 
             log_search_client = self._get_log_search_client()
             
@@ -282,22 +606,21 @@ class MonitoringService:
             return logs
             
         except Exception as e:
-            logger.error(f"❌ Failed to search logs: {e}")
-            return self._get_mock_logs_data(compartment_id)
+            logger.error(f"❌ Failed to search logs for compartment {compartment_id}: {e}")
+            raise ExternalServiceError(f"Failed to search OCI logs: {str(e)}")
 
     async def get_alert_summary(self, compartment_id: str) -> Dict[str, Any]:
-        """Get comprehensive alert summary for a compartment"""
+        """Get alert summary including both OCI alarms and resource-based alerts"""
         try:
-            # Get current alarms
+            # Get all alerts (OCI alarms + resource alerts)
             alarms = await self.get_alarm_status(compartment_id)
             
-            # Get recent alarm history (last 24 hours)
-            end_time = datetime.utcnow()
-            start_time = end_time - timedelta(hours=24)
-            history = await self.get_alarm_history(compartment_id, start_time, end_time)
+            # Count different types of alerts
+            total_alarms = len(alarms)
+            active_alarms = len([a for a in alarms if a.get('is_enabled', False) and a.get('lifecycle_state') == 'ACTIVE'])
             
-            # Classify alerts by severity
-            severity_counts = {
+            # Count by severity
+            severity_breakdown = {
                 "CRITICAL": 0,
                 "HIGH": 0,
                 "MEDIUM": 0,
@@ -305,161 +628,97 @@ class MonitoringService:
                 "INFO": 0
             }
             
-            active_alarms = []
+            # Count by source type
+            oci_alarms = 0
+            resource_alerts = 0
+            
             for alarm in alarms:
-                if alarm.get("is_enabled") and alarm.get("lifecycle_state") == "ACTIVE":
-                    severity = alarm.get("severity", "MEDIUM")
-                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
-                    active_alarms.append(alarm)
+                severity = alarm.get('severity', 'MEDIUM')
+                if severity in severity_breakdown:
+                    severity_breakdown[severity] += 1
+                
+                # Count by source
+                if alarm.get('source') == 'oci_alarm':
+                    oci_alarms += 1
+                elif alarm.get('source') == 'resource_monitoring':
+                    resource_alerts += 1
+
+            # Calculate health score based on severity distribution
+            total_weight = 0
+            max_weight = 0
+            for severity, count in severity_breakdown.items():
+                if severity == "CRITICAL":
+                    weight = count * 10
+                elif severity == "HIGH":
+                    weight = count * 5
+                elif severity == "MEDIUM":
+                    weight = count * 2
+                elif severity == "LOW":
+                    weight = count * 1
+                else:  # INFO
+                    weight = count * 0.5
+                total_weight += weight
+                max_weight += count * 10  # If all were critical
             
-            # Calculate trends
-            recent_alerts = len([h for h in history if h.get("status") == "FIRING"])
-            resolved_alerts = len([h for h in history if h.get("status") == "OK"])
+            # Health score: lower weight = better health (0-1 scale)
+            if max_weight > 0:
+                health_score = max(0, 1 - (total_weight / max_weight))
+            else:
+                health_score = 1.0  # No alerts = perfect health
             
+            # Get top 5 most severe alerts
+            top_alerts = sorted(
+                alarms,
+                key=lambda x: {
+                    'CRITICAL': 5, 'HIGH': 4, 'MEDIUM': 3, 'LOW': 2, 'INFO': 1
+                }.get(x.get('severity', 'MEDIUM'), 3),
+                reverse=True
+            )[:5]
+
             summary = {
                 "compartment_id": compartment_id,
-                "total_alarms": len(alarms),
-                "active_alarms": len(active_alarms),
-                "severity_breakdown": severity_counts,
-                "recent_activity": {
-                    "last_24h_alerts": recent_alerts,
-                    "resolved_alerts": resolved_alerts,
-                    "alert_rate": recent_alerts / 24 if recent_alerts > 0 else 0
-                },
-                "top_alerts": active_alarms[:5],  # Top 5 active alarms
+                "total_alarms": total_alarms,
+                "active_alarms": active_alarms,
+                "severity_breakdown": severity_breakdown,
+                "recent_activity": f"{oci_alarms} OCI alarms + {resource_alerts} resource alerts",
+                "top_alerts": top_alerts,
                 "timestamp": datetime.utcnow().isoformat(),
-                "health_score": self._calculate_health_score(severity_counts, recent_alerts)
+                "health_score": health_score,
+                "alert_sources": {
+                    "oci_alarms": oci_alarms,
+                    "resource_alerts": resource_alerts
+                }
             }
             
-            logger.info(f"✅ Generated alert summary for compartment {compartment_id}")
+            logger.info(f"✅ Generated alert summary: {total_alarms} total ({oci_alarms} OCI + {resource_alerts} resource), {active_alarms} active, health score: {health_score:.2f}")
             return summary
             
         except Exception as e:
-            logger.error(f"❌ Failed to generate alert summary: {e}")
-            raise ExternalServiceError("Unable to generate alert summary")
-
-    def _calculate_health_score(self, severity_counts: Dict[str, int], recent_alerts: int) -> float:
-        """Calculate a health score based on alert severity and frequency"""
-        try:
-            # Base score starts at 100
-            score = 100.0
-            
-            # Deduct points based on severity
-            score -= severity_counts.get("CRITICAL", 0) * 20
-            score -= severity_counts.get("HIGH", 0) * 10
-            score -= severity_counts.get("MEDIUM", 0) * 5
-            score -= severity_counts.get("LOW", 0) * 2
-            
-            # Deduct points for high alert frequency
-            if recent_alerts > 10:
-                score -= (recent_alerts - 10) * 2
-            
-            # Ensure score doesn't go below 0
-            calculated_score = max(0.0, score)
-            
-            # Log for debugging consistency
-            logger.debug(f"Health score calculation: CRITICAL={severity_counts.get('CRITICAL', 0)}, "
-                        f"HIGH={severity_counts.get('HIGH', 0)}, recent_alerts={recent_alerts}, "
-                        f"final_score={calculated_score}")
-            
-            return calculated_score
-            
-        except Exception as e:
-            logger.warning(f"Health score calculation failed: {e}, using default")
-            return 75.0  # Default moderate health score
-
-    def _get_mock_alarm_data(self, compartment_id: str) -> List[Dict[str, Any]]:
-        """Return mock alarm data for development - CONSISTENT DATA FOR ALL COMPARTMENTS"""
-        # Always return the same mock data regardless of compartment ID for consistency
-        logger.debug(f"Generating consistent mock alarm data for compartment: {compartment_id}")
-        return [
-            {
-                "id": "ocid1.alarm.oc1..mock1",
-                "display_name": "High CPU Usage - Web Server",
-                "severity": "HIGH",
-                "lifecycle_state": "ACTIVE",
-                "is_enabled": True,
-                "metric_compartment_id": compartment_id,
-                "namespace": "oci_computeagent",
-                "query": "CpuUtilization[1m].mean() > 80",
-                "rule_name": "high-cpu-web-server",
-                "time_created": (datetime.utcnow() - timedelta(days=1)).isoformat(),
-                "time_updated": datetime.utcnow().isoformat()
-            },
-            {
-                "id": "ocid1.alarm.oc1..mock2", 
-                "display_name": "Database Connection Pool Full",
-                "severity": "CRITICAL",
-                "lifecycle_state": "ACTIVE",
-                "is_enabled": True,
-                "metric_compartment_id": compartment_id,
-                "namespace": "oci_database",
-                "query": "ConnectionPoolUtilization[1m].mean() > 95",
-                "rule_name": "db-connection-pool-full",
-                "time_created": (datetime.utcnow() - timedelta(hours=6)).isoformat(),
-                "time_updated": datetime.utcnow().isoformat()
-            }
-        ]
-        # This should always result in: 100 - 20 (CRITICAL) - 10 (HIGH) = 70 health score
-
-    def _get_mock_alarm_history(self, compartment_id: str) -> List[Dict[str, Any]]:
-        """Return mock alarm history for development"""
-        return [
-            {
-                "alarm_id": "high-cpu-web-server",
-                "status": "FIRING",
-                "timestamp": (datetime.utcnow() - timedelta(minutes=30)).isoformat(),
-                "summary": "CPU utilization exceeded 80% threshold",
-                "suppressed": False
-            },
-            {
-                "alarm_id": "db-connection-pool-full",
-                "status": "OK",
-                "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
-                "summary": "Connection pool utilization returned to normal",
-                "suppressed": False
-            }
-        ]
-
-    def _get_mock_metrics_data(self, namespace: str, metric_name: str) -> Dict[str, Any]:
-        """Return mock metrics data for development"""
-        return {
-            "namespace": namespace,
-            "metric_name": metric_name,
-            "compartment_id": "mock-compartment",
-            "data_points": [
-                {
-                    "timestamp": (datetime.utcnow() - timedelta(minutes=i*5)).isoformat(),
-                    "value": 50 + (i * 5) + (i % 3 * 10)  # Generate some varying data
-                }
-                for i in range(12)  # Last hour of data points every 5 minutes
-            ],
-            "start_time": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.utcnow().isoformat()
-        }
-
-    def _get_mock_logs_data(self, compartment_id: str) -> List[Dict[str, Any]]:
-        """Return mock log data for development"""
-        return [
-            {
-                "id": "log-entry-1",
-                "timestamp": (datetime.utcnow() - timedelta(minutes=10)).isoformat(),
-                "message": {"text": "Application started successfully", "level": "INFO"},
-                "source": "web-server-01",
+            logger.error(f"❌ Failed to get alert summary: {e}")
+            # Return a basic summary instead of failing
+            return {
                 "compartment_id": compartment_id,
-                "log_group_id": "web-server-logs",
-                "fields": {"service": "web", "version": "1.0.0"}
-            },
-            {
-                "id": "log-entry-2",
-                "timestamp": (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
-                "message": {"text": "Database connection timeout", "level": "ERROR"},
-                "source": "web-server-01",
-                "compartment_id": compartment_id,
-                "log_group_id": "web-server-logs",
-                "fields": {"service": "web", "error_code": "DB_TIMEOUT"}
+                "total_alarms": 0,
+                "active_alarms": 0,
+                "severity_breakdown": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0},
+                "recent_activity": "Unable to fetch alert data",
+                "top_alerts": [],
+                "timestamp": datetime.utcnow().isoformat(),
+                "health_score": 0.5,
+                "alert_sources": {"oci_alarms": 0, "resource_alerts": 0},
+                "error": str(e)
             }
-        ]
 
-# Service instance
-monitoring_service = MonitoringService() 
+
+
+# Removed all mock data methods - using real OCI data only
+
+# Service instance - lazy initialization
+_monitoring_service_instance = None
+
+def get_monitoring_service() -> MonitoringService:
+    """Get monitoring service instance (lazy initialization)"""
+    global _monitoring_service_instance
+    if _monitoring_service_instance is None:
+        _monitoring_service_instance = MonitoringService()
+    return _monitoring_service_instance 

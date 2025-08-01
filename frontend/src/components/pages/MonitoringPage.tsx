@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { monitoringService, AlertSummary, Alarm, HealthStatus, MonitoringDashboard } from '../../services/monitoringService';
+import { monitoringService, AlertSummary, Alert, HealthStatus, MonitoringDashboard } from '../../services/monitoringService';
 import { useCompartments } from '../../services/cloudService';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { CompartmentSelector } from '../ui/CompartmentSelector';
@@ -123,7 +123,7 @@ const AlertSummaryCard: React.FC<{ summary: AlertSummary }> = ({ summary }) => (
 );
 
 // Active Alarms Component  
-const ActiveAlarmsCard: React.FC<{ alarms: Alarm[] }> = ({ alarms }) => (
+const ActiveAlarmsCard: React.FC<{ alarms: Alert[] }> = ({ alarms }) => (
   <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Active Alarms</h3>
     
@@ -139,23 +139,21 @@ const ActiveAlarmsCard: React.FC<{ alarms: Alarm[] }> = ({ alarms }) => (
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                  {alarm.display_name}
+                  {alarm.name}
                 </h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {alarm.namespace} • {alarm.query}
+                  {alarm.service} • {alarm.resource}
                 </p>
               </div>
               <div className="flex items-center space-x-2">
                 <SeverityBadge severity={alarm.severity} />
-                {alarm.is_enabled ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                    Enabled
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-                    Disabled
-                  </span>
-                )}
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                  alarm.status === 'OPEN' ? 'bg-red-100 text-red-800' :
+                  alarm.status === 'ACKNOWLEDGED' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {alarm.status}
+                </span>
               </div>
             </div>
           </div>
