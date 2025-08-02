@@ -32,6 +32,7 @@ class User(Base):
     
     # Relationships
     user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="UserRole.user_id")
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(username='{self.username}', email='{self.email}')>"

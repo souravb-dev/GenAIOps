@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -11,6 +11,7 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 api_router.include_router(cloud.router, prefix="/cloud", tags=["cloud-operations"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(genai.router, prefix="/genai", tags=["artificial-intelligence"])
+api_router.include_router(chatbot.router, prefix="/chatbot", tags=["conversational-agent"])
 api_router.include_router(remediation.router, prefix="/remediation", tags=["remediation"])
 
 # Include gateway routes
@@ -45,6 +46,7 @@ async def api_root():
             "cloud": "/cloud",
             "notifications": "/notifications",
             "genai": "/genai",
+            "chatbot": "/chatbot",
             "remediation": "/remediation"
         },
         "microservices": {
@@ -54,6 +56,7 @@ async def api_root():
             "security": "Alert management and remediation",
             "cost-analysis": "Resource cost optimization",
             "genai": "AI-powered insights, chat, and intelligent automation",
+            "chatbot": "Advanced conversational agent with intent recognition and OCI integration",
             "remediation": "Automated infrastructure remediation with approval workflows"
         }
     } 
