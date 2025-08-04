@@ -4,8 +4,8 @@
 Develop backend services to fetch OCI cost reports and usage data, identify top costly resources, analyze cost trends, and integrate with GenAI for cost optimization recommendations and anomaly detection.
 
 **Priority:** Medium  
-**Status:** To Do  
-**Assigned To:** Unassigned  
+**Status:** Completed  
+**Assigned To:** Completed  
 **Dependencies:** Setup GenAI Integration Service, Implement OCI SDK Integration Service
 
 ---

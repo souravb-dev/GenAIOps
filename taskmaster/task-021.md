@@ -4,8 +4,8 @@
 Setup WebSocket connections and polling mechanisms for real-time data updates across all modules, including live metrics, alert notifications, and action status updates.
 
 **Priority:** Medium  
-**Status:** To Do  
-**Assigned To:** Unassigned  
+**Status:** Completed  
+**Assigned To:** Completed  
 **Dependencies:** Implement Dashboard Page - OCI Resource Monitoring, Create Alerts & Insights Page, Create Remediation Panel Frontend
 
 ---
