@@ -5,6 +5,8 @@ import { CompartmentSelector } from '../ui/CompartmentSelector';
 import { ResourceCard } from '../ui/ResourceCard';
 import { MetricsChart } from '../ui/MetricsChart';
 import { ResourceFilter } from '../ui/ResourceFilter';
+import { useWebSocket, useSystemMetrics, useConnectionStatus } from '../../hooks/useWebSocket';
+import { SubscriptionType } from '../../services/websocketService';
 
 // StatCard component for quick stats
 interface StatCardProps {
@@ -73,6 +75,14 @@ export function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedResourceType, setSelectedResourceType] = useState<string>('');
+  
+  // WebSocket for real-time updates
+  const { connected, error: wsError } = useWebSocket({
+    autoConnect: true,
+    subscriptions: [SubscriptionType.DASHBOARD_METRICS, SubscriptionType.SYSTEM_HEALTH]
+  });
+  const { metrics, lastUpdated } = useSystemMetrics();
+  const connectionStatus = useConnectionStatus();
   
   // Set default compartment when compartments load
   React.useEffect(() => {
@@ -159,13 +169,21 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Auto-refresh indicator */}
+      {/* Auto-refresh indicator and WebSocket status */}
       <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-md p-3">
-        <div className="flex items-center">
-          <i className="fas fa-sync-alt text-blue-600 dark:text-blue-400 mr-2 animate-spin"></i>
-          <span className="text-sm text-blue-700 dark:text-blue-300">
-            Auto-refreshing every 30 seconds
-          </span>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center">
+            <i className="fas fa-sync-alt text-blue-600 dark:text-blue-400 mr-2 animate-spin"></i>
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              Auto-refreshing every 30 seconds
+            </span>
+          </div>
+          <div className="flex items-center">
+            <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              {connected ? 'Real-time connected' : 'Real-time disconnected'}
+            </span>
+          </div>
         </div>
         <button 
           className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
@@ -174,6 +192,104 @@ export function DashboardPage() {
           Refresh Now
         </button>
       </div>
+
+      {/* Real-time System Metrics */}
+      {connected && metrics && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              System Metrics (Live)
+            </h2>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {lastUpdated && `Last updated: ${lastUpdated.toLocaleTimeString()}`}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* CPU Usage */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">CPU Usage</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{metrics.cpu_percent.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    metrics.cpu_percent > 80 ? 'bg-red-500' : 
+                    metrics.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(metrics.cpu_percent, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Memory Usage */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Memory Usage</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{metrics.memory_percent.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    metrics.memory_percent > 80 ? 'bg-red-500' : 
+                    metrics.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(metrics.memory_percent, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Disk Usage */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Disk Usage</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{metrics.disk_percent.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    metrics.disk_percent > 80 ? 'bg-red-500' : 
+                    metrics.disk_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(metrics.disk_percent, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Active Connections */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">WS Connections</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{metrics.active_connections}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Uptime: {Math.floor(metrics.uptime_seconds / 3600)}h {Math.floor((metrics.uptime_seconds % 3600) / 60)}m
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WebSocket Error */}
+      {wsError && (
+        <div className="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-md p-4">
+          <div className="flex">
+            <i className="fas fa-exclamation-triangle text-red-400 mr-3 mt-0.5"></i>
+            <div>
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                Real-time Connection Error
+              </h3>
+              <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                {wsError}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Resource Filter */}
       <ResourceFilter

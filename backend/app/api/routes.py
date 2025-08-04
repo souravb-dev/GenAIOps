@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer, cost_analyzer, websocket
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -16,6 +16,8 @@ api_router.include_router(remediation.router, prefix="/remediation", tags=["reme
 api_router.include_router(kubernetes.router, prefix="/kubernetes", tags=["kubernetes-integration"])
 api_router.include_router(kubernetes_working.router, prefix="/k8s", tags=["kubernetes-working"])
 api_router.include_router(access_analyzer.router, prefix="/access", tags=["access-analyzer"])
+api_router.include_router(cost_analyzer.router, prefix="/cost", tags=["cost-analyzer"])
+api_router.include_router(websocket.router, prefix="/ws", tags=["websocket-realtime"])
 
 # Force reload timestamp
 import time
@@ -44,7 +46,9 @@ async def api_root():
             "intelligent-remediation",
             "automated-remediation",
             "conversational-ai",
-            "access-control-analysis"
+            "access-control-analysis",
+            "cost-optimization",
+            "real-time-updates"
         ],
         "endpoints": {
             "health": "/health",
@@ -58,17 +62,20 @@ async def api_root():
             "remediation": "/remediation",
             "kubernetes": "/kubernetes",
             "k8s": "/k8s",
-            "access": "/access"
+            "access": "/access",
+            "cost": "/cost",
+            "websocket": "/ws"
         },
         "microservices": {
             "authentication": "User management and JWT-based auth",
             "cloud-operations": "OCI/AWS/Azure resource management",
             "kubernetes": "Real-time OKE cluster monitoring, RBAC analysis, and pod health management",
             "security": "Alert management and remediation",
-            "cost-analysis": "Resource cost optimization",
+            "cost-analyzer": "Advanced cost analysis, optimization recommendations, and forecasting",
             "genai": "AI-powered insights, chat, and intelligent automation",
             "chatbot": "Advanced conversational agent with intent recognition and OCI integration",
             "remediation": "Automated infrastructure remediation with approval workflows",
-            "access-analyzer": "Unified RBAC and IAM policy analysis with AI-powered security recommendations"
+            "access-analyzer": "Unified RBAC and IAM policy analysis with AI-powered security recommendations",
+            "websocket-realtime": "Real-time data streaming with WebSocket connections for live metrics, alerts, and status updates"
         }
     } 

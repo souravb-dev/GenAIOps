@@ -74,8 +74,13 @@ export function ActionsList({
     }
   };
 
-  const getUniqueValues = (key: keyof RemediationAction) => {
-    return Array.from(new Set(actions.map(action => action[key]))).filter(Boolean);
+  const getUniqueValues = (key: keyof RemediationAction): string[] => {
+    return Array.from(new Set(
+      actions
+        .map(action => action[key])
+        .filter(value => value !== null && value !== undefined && value !== '')
+        .map(value => String(value))
+    ));
   };
 
   const canApprove = permissions?.can_approve_remediation;

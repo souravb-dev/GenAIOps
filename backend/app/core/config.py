@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     
     # OCI Configuration  
-    OCI_CONFIG_FILE: str = "C:\\Users\\2375603\\.oci\\config"
+    OCI_CONFIG_FILE: str = os.path.expanduser("~/.oci/config")
     OCI_PROFILE: str = "DEFAULT"
     OCI_REGION: str = "eu-frankfurt-1"
     OCI_TENANCY_ID: str = ""

@@ -158,6 +158,16 @@ def check_user_permissions(user: User, **permissions):
             )
         print(f"✅ Access analyzer permission granted")
     
+    if permissions.get('can_view_cost_analyzer'):
+        print(f"🔍 Checking cost analyzer permission...")
+        if not any(role in [RoleEnum.ADMIN.value, RoleEnum.OPERATOR.value] for role in user_roles):
+            print(f"❌ Cost analyzer requires admin or operator, user has: {user_roles}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin or Operator role required for cost analyzer"
+            )
+        print(f"✅ Cost analyzer permission granted")
+    
     total_time = time.time() - check_start
     print(f"🔍 Total permission check took: {total_time:.3f}s")
     print(f"✅ All permission checks passed") 

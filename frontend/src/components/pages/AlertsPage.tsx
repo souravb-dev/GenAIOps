@@ -10,6 +10,8 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { cloudService } from '../../services/cloudService';
 import { monitoringService } from '../../services/monitoringService';
 import type { Alert } from '../../services/monitoringService';
+import { useWebSocket, useAlerts, useConnectionStatus } from '../../hooks/useWebSocket';
+import { SubscriptionType } from '../../services/websocketService';
 
 // Using Alert interface from monitoringService.ts
 
@@ -68,6 +70,14 @@ export function AlertsPage() {
     search: '',
     timeRange: '24h'
   });
+
+  // Real-time WebSocket integration
+  const { connected } = useWebSocket({
+    autoConnect: true,
+    subscriptions: [SubscriptionType.ALERTS]
+  });
+  const { alerts: realtimeAlerts, unreadCount, markAsRead, markAllAsRead } = useAlerts();
+  const connectionStatus = useConnectionStatus();
 
   // Fetch compartments
   const { data: compartments, isLoading: compartmentsLoading } = useQuery({

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Frontend React App
+  # Frontend React App (Development)
   frontend:
     build:
       context: ./frontend
@@ -13,12 +13,20 @@ services:
       - /app/node_modules
     environment:
       - REACT_APP_API_URL=http://localhost:8000
+      - NODE_ENV=development
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - genai-cloudops
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # Backend FastAPI
+  # Backend FastAPI (Development)
   backend:
     build:
       context: ./backend
@@ -28,27 +36,44 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/genai_cloudops
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-genai_cloudops}
+      - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=development
       - DEBUG=true
+      - LOG_LEVEL=debug
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - genai-cloudops
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # PostgreSQL Database
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=genai_cloudops
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-genai_cloudops}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - genai-cloudops
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-genai_cloudops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Redis for caching
   redis:
@@ -59,6 +84,12 @@ services:
       - redis_data:/data
     networks:
       - genai-cloudops
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:

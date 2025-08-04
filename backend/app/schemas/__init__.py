@@ -61,6 +61,13 @@ from .remediation import (
     ActionStatusResponse, ActionListResponse, ExecutionResult,
     ApprovalRequest, ExecuteActionRequest, ActionTypeInfo, SystemConfiguration
 )
+from .cost_analyzer import (
+    CostLevel, OptimizationType,
+    ResourceCostSchema, TopCostlyResourceSchema, CostTrendSchema, CostAnomalySchema,
+    OptimizationRecommendationSchema, CostForecastSchema, CompartmentCostBreakdownSchema,
+    CostSummarySchema, CostAnalysisRequest, TopCostlyResourcesRequest,
+    TopCostlyResourcesResponse, CostAnalysisResponse, CostHealthCheckResponse
+)
 
 __all__ = [
     "UserCreate",
@@ -135,5 +142,20 @@ __all__ = [
     "ApprovalRequest",
     "ExecuteActionRequest",
     "ActionTypeInfo",
-    "SystemConfiguration"
+    "SystemConfiguration",
+    "CostLevel",
+    "OptimizationType",
+    "ResourceCostSchema",
+    "TopCostlyResourceSchema",
+    "CostTrendSchema",
+    "CostAnomalySchema",
+    "OptimizationRecommendationSchema",
+    "CostForecastSchema",
+    "CompartmentCostBreakdownSchema",
+    "CostSummarySchema",
+    "CostAnalysisRequest",
+    "TopCostlyResourcesRequest",
+    "TopCostlyResourcesResponse",
+    "CostAnalysisResponse",
+    "CostHealthCheckResponse"
 ] 

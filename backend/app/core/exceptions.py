@@ -46,6 +46,10 @@ class RateLimitError(BaseCustomException):
     """Raised when rate limit is exceeded"""
     pass
 
+class WebSocketError(BaseCustomException):
+    """Raised when WebSocket operation fails"""
+    pass
+
 # Exception handlers
 async def custom_exception_handler(request: Request, exc: BaseCustomException):
     """Handler for custom exceptions"""

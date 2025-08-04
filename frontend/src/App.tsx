@@ -12,6 +12,7 @@ import { AlertsPage } from './components/pages/AlertsPage';
 import { RemediationPage } from './components/pages/RemediationPage';
 import { AccessAnalyzerPage } from './components/pages/AccessAnalyzerPage';
 import { PodHealthAnalyzerPage } from './components/pages/PodHealthAnalyzerPage';
+import { CostAnalyzerPage } from './components/pages/CostAnalyzerPage';
 
 // Placeholder components for other pages
 function CloudResourcesPage() {
@@ -25,14 +26,7 @@ function CloudResourcesPage() {
 
 // KubernetesPage is now replaced by PodHealthAnalyzerPage
 
-function CostAnalysisPage() {
-  return (
-    <div className="text-center py-12">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Cost Analysis</h1>
-      <p className="text-gray-600 dark:text-gray-400">Cost analysis features coming soon...</p>
-    </div>
-  );
-}
+
 
 // Use RemediationPage as AutomationPage
 const AutomationPage = RemediationPage;
@@ -151,7 +145,7 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermissions={['can_view_cost_analyzer']}>
                     <AppLayout>
-                      <CostAnalysisPage />
+                      <CostAnalyzerPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

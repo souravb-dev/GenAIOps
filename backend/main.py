@@ -12,6 +12,7 @@ from app.core.middleware import (
     ErrorHandlingMiddleware, 
     MonitoringMiddleware
 )
+from app.services.realtime_service import start_realtime_streaming, stop_realtime_streaming
 from app.core.exceptions import (
     BaseCustomException,
     custom_exception_handler,
@@ -21,9 +22,34 @@ from app.core.exceptions import (
 )
 import asyncio
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
+    print("🚀 Starting real-time streaming service...")
+    try:
+        # Start real-time streaming in background
+        streaming_task = asyncio.create_task(start_realtime_streaming())
+        print("✅ Real-time streaming service started")
+        yield
+    except Exception as e:
+        print(f"❌ Failed to start real-time streaming: {e}")
+        yield
+    finally:
+        # Shutdown
+        print("🛑 Shutting down real-time streaming service...")
+        try:
+            await stop_realtime_streaming()
+            print("✅ Real-time streaming service stopped")
+        except Exception as e:
+            print(f"❌ Error during shutdown: {e}")
+
 app = FastAPI(
     title="GenAI CloudOps API",
     version="1.0.0",
+    lifespan=lifespan,
     description="""
 ## Advanced Backend API for GenAI CloudOps Platform
 

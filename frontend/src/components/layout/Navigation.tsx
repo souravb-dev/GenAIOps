@@ -63,7 +63,7 @@ const navigationItems: NavigationItem[] = [
     name: 'Cost Analysis',
     path: '/cost-analysis',
     icon: 'fas fa-dollar-sign',
-    requiredPermissions: ['can_view_costs'],
+    requiredPermissions: ['can_view_cost_analyzer'],
     description: 'Resource costs and optimization'
   },
   {
@@ -104,6 +104,7 @@ export function Navigation() {
       'can_view_kubernetes': permissions.can_view_pod_analyzer,
       'can_view_pod_analyzer': permissions.can_view_pod_analyzer, // Fix: Add mapping for Pod Health Analyzer
       'can_view_costs': permissions.can_view_cost_analyzer,
+      'can_view_cost_analyzer': permissions.can_view_cost_analyzer, // Add correct mapping for Cost Analysis
       'can_manage_automation': permissions.can_execute_remediation,
       'can_view_settings': permissions.can_manage_users || permissions.can_manage_roles,
     };

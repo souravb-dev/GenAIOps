@@ -146,6 +146,13 @@ class AuthService:
         finally:
             db.close()
     
+    async def get_user_from_token(self, token: str) -> User:
+        """Async version of get_current_user_from_token for WebSocket use"""
+        try:
+            return self.get_current_user_from_token(token)
+        except HTTPException:
+            return None
+    
     @staticmethod
     def extract_token_from_header(authorization: str = Header(None)) -> str:
         """Extract Bearer token from Authorization header"""
