@@ -739,8 +739,17 @@ class RemediationService:
         
         db.add(queue_item)
 
-# Global instance
-remediation_service = RemediationService()
+# Global instance - lazy loading
+_remediation_service = None
+
+def get_remediation_service() -> RemediationService:
+    """Get remediation service instance with lazy loading"""
+    global _remediation_service
+    if _remediation_service is None:
+        _remediation_service = RemediationService()
+    return _remediation_service
+
+# Access via function call only - don't instantiate at module level
 
 async def generate_oci_remediation_actions(
     current_user: User,
@@ -756,7 +765,7 @@ async def generate_oci_remediation_actions(
     
     try:
         # Get the OCI service instance
-        oci_service = remediation_service.oci_service
+        oci_service = get_remediation_service().oci_service
         
         # Check if OCI is available
         if not oci_service.oci_available:
@@ -785,7 +794,7 @@ async def generate_oci_remediation_actions(
                 # Check for stopped instances that should be running
                 if instance_state == 'STOPPED':
                     logger.info(f"🚨 FOUND STOPPED INSTANCE: {instance_name} - Creating remediation action")
-                    action = await remediation_service.create_remediation_action(
+                    action = await get_remediation_service().create_remediation_action(
                         title=f"Restart Stopped Instance: {instance_name}",
                         description=f"Instance {instance_name} in compartment {compartment_name} is in STOPPED state",
                         action_type=ActionType.OCI_CLI,
@@ -816,7 +825,7 @@ async def generate_oci_remediation_actions(
                 try:
                     metrics = await oci_service.get_resource_metrics(instance_id, "compute")
                     if metrics and metrics.cpu_utilization > 90:
-                        action = await remediation_service.create_remediation_action(
+                        action = await get_remediation_service().create_remediation_action(
                             title=f"High CPU Alert: {instance_name}",
                             description=f"Instance {instance_name} has CPU utilization above 90%",
                             action_type=ActionType.OCI_CLI,
@@ -856,7 +865,7 @@ async def generate_oci_remediation_actions(
                     
                     # Check for stopped databases
                     if db_state in ['STOPPED', 'STOPPING']:
-                        action = await remediation_service.create_remediation_action(
+                        action = await get_remediation_service().create_remediation_action(
                             title=f"Restart Database: {db_name}",
                             description=f"Database {db_name} in compartment {compartment_name} is not running",
                             action_type=ActionType.OCI_CLI,

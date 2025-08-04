@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from app.api.routes import api_router
+print("🔄 MAIN.PY: api_router imported - checking for k8s routes")
 from app.core.config import settings
 from app.core.database import create_tables, init_default_roles
 from app.core.middleware import (
@@ -147,6 +148,7 @@ async def startup_event() -> None:
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+print(f"🔄 MAIN.PY: api_router included with {len(api_router.routes)} routes")
 
 @app.get("/")
 async def root() -> dict[str, str]:

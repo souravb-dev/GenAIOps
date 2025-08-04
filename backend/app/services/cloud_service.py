@@ -222,7 +222,7 @@ class OCIService:
             self.clients['container_engine'] = oci.container_engine.ContainerEngineClient(self.config)
             self.clients['load_balancer'] = oci.load_balancer.LoadBalancerClient(self.config)
             self.clients['network_load_balancer'] = oci.network_load_balancer.NetworkLoadBalancerClient(self.config)
-            self.clients['api_gateway'] = oci.apigateway.GatewayClient(self.config)
+
             
             # Virtual network client
             self.clients['virtual_network'] = oci.core.VirtualNetworkClient(self.config)
@@ -233,16 +233,9 @@ class OCIService:
             
             logger.info("✅ OCI SDK clients initialized successfully")
             
-            # Test the connection with a simple call
-            try:
-                identity_client = self.clients['identity']
-                tenancy = identity_client.get_tenancy(self.config['tenancy'])
-                logger.info(f"✅ OCI connection test successful. Tenancy: {tenancy.data.name}")
-                self.oci_available = True
-            except Exception as test_error:
-                logger.warning(f"⚠️ OCI clients created but connection test failed: {test_error}")
-                logger.warning("🔄 Will use mock data for development")
-                self.oci_available = False
+            # Mark as potentially available - actual connection test will be done on-demand
+            self.oci_available = True
+            logger.info("🔄 OCI clients created, connection will be tested on first API call")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize OCI clients: {e}")
@@ -252,6 +245,29 @@ class OCIService:
             self.oci_available = False
             self.clients = {}
             self.config = {"region": "us-ashburn-1"}
+
+    async def test_connection(self) -> bool:
+        """Test OCI connection asynchronously on-demand"""
+        if not self.oci_available or not self.clients.get('identity'):
+            return False
+            
+        try:
+            # Test the connection with a simple call using asyncio
+            identity_client = self.clients['identity']
+            loop = asyncio.get_event_loop()
+            
+            tenancy = await loop.run_in_executor(
+                None,
+                lambda: identity_client.get_tenancy(self.config['tenancy'])
+            )
+            
+            logger.info(f"✅ OCI connection test successful. Tenancy: {tenancy.data.name}")
+            return True
+            
+        except Exception as test_error:
+            logger.warning(f"⚠️ OCI connection test failed: {test_error}")
+            logger.warning("🔄 Will use mock data for development")
+            return False
 
     async def _make_oci_call(self, client_method, *args, **kwargs):
         """Make OCI API call with retry logic"""

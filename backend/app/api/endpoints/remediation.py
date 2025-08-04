@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.auth_service import AuthService
-from app.services.remediation_service import remediation_service
+from app.services.remediation_service import get_remediation_service
 from app.models.user import User
 from app.models.remediation import ActionType, ActionStatus, Severity
 from app.core.permissions import require_permissions
@@ -81,6 +81,7 @@ async def create_remediation_action(
     **Required permissions:** operator or higher
     """
     try:
+        remediation_service = get_remediation_service()
         action = await remediation_service.create_remediation_action(
             title=request.title,
             description=request.description,
@@ -132,6 +133,7 @@ async def approve_action(
     **Required permissions:** operator or higher
     """
     try:
+        remediation_service = get_remediation_service()
         success = await remediation_service.approve_action(
             action_id=action_id,
             current_user=current_user,
@@ -165,6 +167,7 @@ async def execute_action(
     **Required permissions:** operator or higher
     """
     try:
+        remediation_service = get_remediation_service()
         result = await remediation_service.execute_action(
             action_id=action_id,
             current_user=current_user,
@@ -198,6 +201,7 @@ async def rollback_action(
     **Required permissions:** operator or higher
     """
     try:
+        remediation_service = get_remediation_service()
         result = await remediation_service.rollback_action(
             action_id=action_id,
             current_user=current_user,
@@ -230,6 +234,7 @@ async def get_action_status(
     **Required permissions:** viewer or higher
     """
     try:
+        remediation_service = get_remediation_service()
         status_info = await remediation_service.get_action_status(
             action_id=action_id,
             db=db
@@ -265,6 +270,7 @@ async def list_actions(
     **Required permissions:** viewer or higher
     """
     try:
+        remediation_service = get_remediation_service()
         # Parse filter parameters
         status_list = None
         if status_filter:
@@ -353,6 +359,7 @@ async def cancel_action(
     **Required permissions:** operator or higher
     """
     try:
+        remediation_service = get_remediation_service()
         from app.models.remediation import RemediationAction
         
         action = db.query(RemediationAction).filter(RemediationAction.id == action_id).first()
@@ -404,6 +411,7 @@ async def get_action_types(
     
     **Required permissions:** viewer or higher
     """
+    remediation_service = get_remediation_service()
     return {
         "action_types": [
             {
@@ -423,6 +431,7 @@ async def get_action_statuses(
     
     **Required permissions:** viewer or higher
     """
+    remediation_service = get_remediation_service()
     return {
         "statuses": [
             {
@@ -442,6 +451,7 @@ async def get_severities(
     
     **Required permissions:** viewer or higher
     """
+    remediation_service = get_remediation_service()
     return {
         "severities": [
             {
@@ -456,6 +466,7 @@ async def get_severities(
 async def remediation_health():
     """Check remediation service health"""
     try:
+        remediation_service = get_remediation_service()
         # Basic health check
         health_status = {
             "status": "healthy",
@@ -518,7 +529,6 @@ async def generate_oci_remediation_actions(
     """
     try:
         from app.services.remediation_service import generate_oci_remediation_actions
-        
         actions = await generate_oci_remediation_actions(
             current_user=current_user,
             environment=environment,
@@ -559,6 +569,7 @@ async def cleanup_test_data(
     **Required permissions:** admin
     """
     try:
+        remediation_service = get_remediation_service()
         from app.models.remediation import RemediationAction, RemediationAuditLog
         
         # Delete test actions (actions with test data patterns)

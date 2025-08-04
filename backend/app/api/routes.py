@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -13,6 +13,13 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(genai.router, prefix="/genai", tags=["artificial-intelligence"])
 api_router.include_router(chatbot.router, prefix="/chatbot", tags=["conversational-agent"])
 api_router.include_router(remediation.router, prefix="/remediation", tags=["remediation"])
+api_router.include_router(kubernetes.router, prefix="/kubernetes", tags=["kubernetes-integration"])
+api_router.include_router(kubernetes_working.router, prefix="/k8s", tags=["kubernetes-working"])
+api_router.include_router(access_analyzer.router, prefix="/access", tags=["access-analyzer"])
+
+# Force reload timestamp
+import time
+print(f"🔄 Routes loaded at {time.strftime('%H:%M:%S')} - k8s endpoints registered")
 
 # Include gateway routes
 gateway = get_gateway()
@@ -36,7 +43,8 @@ async def api_root():
             "ai-powered-analytics",
             "intelligent-remediation",
             "automated-remediation",
-            "conversational-ai"
+            "conversational-ai",
+            "access-control-analysis"
         ],
         "endpoints": {
             "health": "/health",
@@ -47,16 +55,20 @@ async def api_root():
             "notifications": "/notifications",
             "genai": "/genai",
             "chatbot": "/chatbot",
-            "remediation": "/remediation"
+            "remediation": "/remediation",
+            "kubernetes": "/kubernetes",
+            "k8s": "/k8s",
+            "access": "/access"
         },
         "microservices": {
             "authentication": "User management and JWT-based auth",
             "cloud-operations": "OCI/AWS/Azure resource management",
-            "kubernetes": "Pod and cluster monitoring",
+            "kubernetes": "Real-time OKE cluster monitoring, RBAC analysis, and pod health management",
             "security": "Alert management and remediation",
             "cost-analysis": "Resource cost optimization",
             "genai": "AI-powered insights, chat, and intelligent automation",
             "chatbot": "Advanced conversational agent with intent recognition and OCI integration",
-            "remediation": "Automated infrastructure remediation with approval workflows"
+            "remediation": "Automated infrastructure remediation with approval workflows",
+            "access-analyzer": "Unified RBAC and IAM policy analysis with AI-powered security recommendations"
         }
     } 

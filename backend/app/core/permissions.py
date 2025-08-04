@@ -92,4 +92,72 @@ RequirePodAnalyzer = PermissionChecker(["can_view_pod_analyzer"])
 RequireCostAnalyzer = PermissionChecker(["can_view_cost_analyzer"])
 RequireChatbotAccess = PermissionChecker(["can_use_chatbot"])
 
-# Helper functions simplified to not require database session 
+# Helper functions simplified to not require database session
+def require_permissions(*permissions: str):
+    """Decorator to require specific permissions - returns a FastAPI dependency"""
+    return PermissionChecker(list(permissions))
+
+def check_user_permissions(user: User, **permissions):
+    """Check if user has required permissions (direct function call)"""
+    import time
+    check_start = time.time()
+    
+    # For now, just check if user has admin role for all permissions
+    # This can be expanded later with more granular permission checking
+    print(f"🔍 Permission Debug - User: {user.username}, Checking: {permissions}")
+    
+    from app.core.database import SessionLocal
+    db_start = time.time()
+    db = SessionLocal()
+    print(f"🔍 Database connection took: {time.time() - db_start:.3f}s")
+    
+    try:
+        query_start = time.time()
+        from app.models.user import UserRole, Role
+        user_roles_records = db.query(UserRole).filter(UserRole.user_id == user.id).all()
+        print(f"🔍 UserRole query took: {time.time() - query_start:.3f}s")
+        
+        user_roles = []
+        role_query_start = time.time()
+        for user_role in user_roles_records:
+            role = db.query(Role).filter(Role.id == user_role.role_id).first()
+            if role:
+                user_roles.append(role.name.value)
+        print(f"🔍 Role queries took: {time.time() - role_query_start:.3f}s")
+        print(f"🔍 User roles found: {user_roles}")
+    finally:
+        db_close_start = time.time()
+        db.close()
+        print(f"🔍 Database close took: {time.time() - db_close_start:.3f}s")
+    
+    # Check for admin role - admins can do everything
+    if RoleEnum.ADMIN.value in user_roles:
+        print(f"✅ Admin role found - allowing all permissions")
+        total_time = time.time() - check_start
+        print(f"🔍 Total permission check took: {total_time:.3f}s")
+        return
+    
+    print(f"🔍 No admin role, checking specific permissions...")
+    
+    # For now, require admin for role management permissions
+    if permissions.get('can_manage_roles'):
+        print(f"❌ Role management requires admin")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required for role management"
+        )
+    
+    # Add other permission checks as needed
+    if permissions.get('can_view_access_analyzer'):
+        print(f"🔍 Checking access analyzer permission...")
+        if not any(role in [RoleEnum.ADMIN.value, RoleEnum.OPERATOR.value] for role in user_roles):
+            print(f"❌ Access analyzer requires admin or operator, user has: {user_roles}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin or Operator role required for access analyzer"
+            )
+        print(f"✅ Access analyzer permission granted")
+    
+    total_time = time.time() - check_start
+    print(f"🔍 Total permission check took: {total_time:.3f}s")
+    print(f"✅ All permission checks passed") 

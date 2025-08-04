@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from typing import Dict, List, Any, Optional
@@ -9,7 +9,7 @@ import io
 
 from app.core.database import get_db
 from app.services.auth_service import AuthService
-from app.services.chatbot_service import chatbot_service
+from app.services.chatbot_service import get_chatbot_service
 from app.models.user import User
 from app.models.chatbot import (
     Conversation, ConversationMessage, QueryTemplate, ConversationAnalytics,
@@ -24,7 +24,7 @@ from app.schemas.chatbot import (
     ChatbotFeedbackRequest, FeedbackResponse, ChatbotHealthResponse,
     SuggestedQueriesResponse, ConversationStatusEnum, MessageRoleEnum
 )
-# from app.core.permissions import require_permissions
+from app.core.permissions import require_permissions
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ async def enhanced_chat(
 ):
     """Enhanced chat with intent recognition, OCI integration, and advanced features"""
     try:
+        chatbot_service = get_chatbot_service()
         response = await chatbot_service.enhanced_chat(
             message=request.message,
             user_id=current_user.id,
@@ -379,6 +380,7 @@ async def use_template(
         db.commit()
         
         # Generate enhanced chat response
+        chatbot_service = get_chatbot_service()
         response = await chatbot_service.enhanced_chat(
             message=message,
             user_id=current_user.id,

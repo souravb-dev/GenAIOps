@@ -15,8 +15,8 @@ def test_oci_files():
     """Test if OCI config and key files exist"""
     print("🔍 Testing OCI Files:")
     
-    config_file = "C:\\Users\\2374439\\.oci\\config"
-    key_file = "C:\\Users\\2374439\\.oci\\oci_api_key.pem"
+    config_file = "C:\\Users\\2375603\\.oci\\config"
+    key_file = "C:\\Users\\2375603\\.oci\\oci_api_key.pem"
     
     print(f"  Config file: {config_file}")
     if os.path.exists(config_file):
@@ -24,63 +24,73 @@ def test_oci_files():
         try:
             with open(config_file, 'r') as f:
                 content = f.read()
-                if 'eu-frankfurt-1' in content:
-                    print("  ✅ Correct region (eu-frankfurt-1) found in config")
+                if 'user' in content and 'tenancy' in content:
+                    print("  ✅ Config file contains required fields")
                 else:
-                    print("  ⚠️  Region check - looking for eu-frankfurt-1...")
+                    print("  ⚠️  Config file missing required fields")
         except Exception as e:
-            print(f"  ❌ Error reading config: {e}")
+            print(f"  ❌ Error reading config file: {e}")
     else:
         print("  ❌ Config file not found")
     
     print(f"  Key file: {key_file}")
     if os.path.exists(key_file):
         print("  ✅ Key file exists")
-        # Check key file permissions (should be readable)
-        try:
-            with open(key_file, 'r') as f:
-                key_content = f.read()
-                if 'BEGIN RSA PRIVATE KEY' in key_content or 'BEGIN PRIVATE KEY' in key_content:
-                    print("  ✅ Key file appears to be valid")
-                else:
-                    print("  ⚠️  Key file format may be incorrect")
-        except Exception as e:
-            print(f"  ❌ Error reading key file: {e}")
     else:
         print("  ❌ Key file not found")
 
-def test_oci_import():
-    """Test OCI SDK import and basic functionality"""
-    print("\n🔍 Testing OCI SDK:")
+def test_oci_config_parsing():
+    """Test OCI config parsing"""
+    print("\n🔧 Testing OCI Config Parsing:")
     
     try:
-        import oci
-        print(f"  ✅ OCI SDK imported successfully (version: {oci.__version__})")
+        # Load configuration
+        config = oci.config.from_file()
+        print("  ✅ Config loaded successfully using default location")
         
-        # Test configuration loading
-        try:
-            config = oci.config.from_file("C:\\Users\\2374439\\.oci\\config", "DEFAULT")
-            print("  ✅ OCI config loaded successfully")
-            
-            # Test config validation
-            try:
-                oci.config.validate_config(config)
-                print("  ✅ OCI config validation passed")
-                print(f"    - Region: {config.get('region')}")
-                print(f"    - User ID: {config.get('user', 'N/A')[:20]}...")
-                print(f"    - Tenancy ID: {config.get('tenancy', 'N/A')[:20]}...")
-                return config
-            except Exception as e:
-                print(f"  ❌ Config validation failed: {e}")
-                return None
+        # Validate required fields
+        required_fields = ['user', 'fingerprint', 'tenancy', 'region', 'key_file']
+        for field in required_fields:
+            if field in config:
+                print(f"  ✅ {field}: {config[field][:20]}..." if len(str(config[field])) > 20 else f"  ✅ {field}: {config[field]}")
+            else:
+                print(f"  ❌ Missing {field}")
                 
-        except Exception as e:
-            print(f"  ❌ Config loading failed: {e}")
-            return None
-            
-    except ImportError as e:
-        print(f"  ❌ OCI SDK import failed: {e}")
-        return None
+    except oci.exceptions.ConfigFileNotFound as e:
+        print(f"  ❌ Config file not found: {e}")
+    except oci.exceptions.InvalidConfig as e:
+        print(f"  ❌ Invalid config: {e}")
+    except Exception as e:
+        print(f"  ❌ Error loading config: {e}")
+
+def test_oci_auth():
+    """Test OCI authentication"""
+    print("\n🔐 Testing OCI Authentication:")
+    
+    try:
+        # Test config with specific file path
+        config = oci.config.from_file("C:\\Users\\2375603\\.oci\\config", "DEFAULT")
+        
+        # Validate config
+        oci.config.validate_config(config)
+        print("  ✅ Config validation passed")
+        
+        # Try to create a simple client
+        identity_client = oci.identity.IdentityClient(config)
+        print("  ✅ Identity client created successfully")
+        
+        return True
+        
+    except oci.exceptions.ConfigFileNotFound as e:
+        print(f"  ❌ Config file not found: {e}")
+    except oci.exceptions.InvalidConfig as e:
+        print(f"  ❌ Invalid config: {e}")
+    except oci.exceptions.ServiceError as e:
+        print(f"  ❌ Service error: {e}")
+    except Exception as e:
+        print(f"  ❌ Authentication error: {e}")
+    
+    return False
 
 async def test_oci_connection(config):
     """Test actual OCI API connection"""

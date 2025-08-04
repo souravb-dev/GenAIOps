@@ -13,6 +13,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",  # Vite dev server
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://localhost:3001",  # Alternative React port
+        "http://localhost:8080",  # Alternative dev port
     ]
     
     # Database Settings
@@ -34,7 +36,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     
     # OCI Configuration  
-    OCI_CONFIG_FILE: str = "C:\\Users\\2374439\\.oci\\config"
+    OCI_CONFIG_FILE: str = "C:\\Users\\2375603\\.oci\\config"
     OCI_PROFILE: str = "DEFAULT"
     OCI_REGION: str = "eu-frankfurt-1"
     OCI_TENANCY_ID: str = ""

@@ -45,11 +45,18 @@ const navigationItems: NavigationItem[] = [
   },
   {
     id: 'kubernetes',
-    name: 'Kubernetes',
+    name: 'Pod Health',
     path: '/kubernetes',
     icon: 'fas fa-dharmachakra',
-    requiredPermissions: ['can_view_kubernetes'],
-    description: 'K8s clusters and workloads'
+    requiredPermissions: ['can_view_pod_analyzer'],
+    description: 'Pod health monitoring and log analysis'
+  },
+  {
+    id: 'access-analyzer',
+    name: 'Access Analyzer',
+    path: '/access-analyzer',
+    icon: 'fas fa-shield-alt',
+    description: 'RBAC and IAM security analysis'
   },
   {
     id: 'cost-analysis',
@@ -95,6 +102,7 @@ export function Navigation() {
       'can_view_monitoring': permissions.can_view_alerts,
       'can_view_alerts': permissions.can_view_alerts, // Add mapping for alerts & insights
       'can_view_kubernetes': permissions.can_view_pod_analyzer,
+      'can_view_pod_analyzer': permissions.can_view_pod_analyzer, // Fix: Add mapping for Pod Health Analyzer
       'can_view_costs': permissions.can_view_cost_analyzer,
       'can_manage_automation': permissions.can_execute_remediation,
       'can_view_settings': permissions.can_manage_users || permissions.can_manage_roles,

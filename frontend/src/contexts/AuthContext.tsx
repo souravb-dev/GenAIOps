@@ -90,22 +90,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const verifyAndLoadUser = async () => {
-    try {
-      // Verify token is still valid
-      await authService.verifyToken();
-      
-      // Load user data and permissions
-      const [user, permissionData] = await Promise.all([
-        authService.getCurrentUser(),
-        authService.getUserPermissions()
-      ]);
+    // Verify token is still valid
+    await authService.verifyToken();
+    
+    // Load user data and permissions
+    const [user, permissionData] = await Promise.all([
+      authService.getCurrentUser(),
+      authService.getUserPermissions()
+    ]);
 
-      dispatch({ type: 'SET_USER', payload: user });
-      dispatch({ type: 'SET_PERMISSIONS', payload: permissionData.permissions });
-      dispatch({ type: 'SET_LOADING', payload: false });
-    } catch (error) {
-      throw error;
-    }
+    dispatch({ type: 'SET_USER', payload: user });
+    dispatch({ type: 'SET_PERMISSIONS', payload: permissionData.permissions });
+    dispatch({ type: 'SET_LOADING', payload: false });
   };
 
   const login = async (credentials: LoginCredentials) => {

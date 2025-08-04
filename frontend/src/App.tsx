@@ -10,6 +10,8 @@ import { DashboardPage } from './components/pages/DashboardPage';
 import { MonitoringPage } from './components/pages/MonitoringPage';
 import { AlertsPage } from './components/pages/AlertsPage';
 import { RemediationPage } from './components/pages/RemediationPage';
+import { AccessAnalyzerPage } from './components/pages/AccessAnalyzerPage';
+import { PodHealthAnalyzerPage } from './components/pages/PodHealthAnalyzerPage';
 
 // Placeholder components for other pages
 function CloudResourcesPage() {
@@ -21,14 +23,7 @@ function CloudResourcesPage() {
   );
 }
 
-function KubernetesPage() {
-  return (
-    <div className="text-center py-12">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Kubernetes</h1>
-      <p className="text-gray-600 dark:text-gray-400">Kubernetes management coming soon...</p>
-    </div>
-  );
-}
+// KubernetesPage is now replaced by PodHealthAnalyzerPage
 
 function CostAnalysisPage() {
   return (
@@ -134,7 +129,18 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermissions={['can_view_pod_analyzer']}>
                     <AppLayout>
-                      <KubernetesPage />
+                      <PodHealthAnalyzerPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/access-analyzer"
+                element={
+                  <ProtectedRoute requiredPermissions={['can_view_access_analyzer']}>
+                    <AppLayout>
+                      <AccessAnalyzerPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

@@ -463,5 +463,14 @@ class ChatbotService:
             }
         ]
 
-# Global service instance
-chatbot_service = ChatbotService() 
+# Global service instance - lazy loading
+_chatbot_service = None
+
+def get_chatbot_service() -> ChatbotService:
+    """Get chatbot service instance with lazy loading"""
+    global _chatbot_service
+    if _chatbot_service is None:
+        _chatbot_service = ChatbotService()
+    return _chatbot_service
+
+# Access via function call only - don't instantiate at module level 

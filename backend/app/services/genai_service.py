@@ -257,15 +257,33 @@ class GenAIService:
                     socket_connect_timeout=2,
                     socket_timeout=2
                 )
-                # Test the connection
-                self.redis_client.ping()
+                # Don't test connection during init - do it on-demand
                 self.context_manager = ConversationContext(self.redis_client)
-                logger.info("GenAI service initialized with Redis caching enabled")
+                logger.info("GenAI service initialized with Redis caching configured (connection will be tested on first use)")
             except Exception as e:
-                logger.info(f"Redis not available, running without cache (this is normal for development): {e}")
+                logger.info(f"Redis configuration failed, running without cache (this is normal for development): {e}")
                 self.redis_client = None
         else:
             logger.info("Redis caching disabled in configuration")
+
+    async def test_redis_connection(self) -> bool:
+        """Test Redis connection asynchronously on-demand"""
+        if not self.redis_client:
+            return False
+            
+        try:
+            # Test Redis connection with timeout
+            loop = asyncio.get_event_loop()
+            await asyncio.wait_for(
+                loop.run_in_executor(None, self.redis_client.ping),
+                timeout=2.0
+            )
+            logger.info("✅ Redis connection test successful")
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ Redis connection test failed: {e}")
+            self.redis_client = None
+            return False
     
     def _generate_cache_key(self, request: GenAIRequest) -> str:
         """Generate cache key for request"""
