@@ -34,6 +34,24 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
+    
+    # Security Settings
+    SECURITY_MIDDLEWARE_ENABLED: bool = True
+    RATE_LIMITING_ENABLED: bool = True
+    INPUT_VALIDATION_ENABLED: bool = True
+    MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10MB
+    
+    # Performance Settings
+    DATABASE_POOL_SIZE: int = 20
+    DATABASE_MAX_OVERFLOW: int = 30
+    DATABASE_POOL_TIMEOUT: int = 30
+    QUERY_TIMEOUT: int = 30
+    
+    # Compression Settings
+    COMPRESSION_ENABLED: bool = True
+    COMPRESSION_LEVEL: int = 6
+    COMPRESSION_MIN_SIZE: int = 1024  # 1KB
     
     # OCI Configuration  
     OCI_CONFIG_FILE: str = os.path.expanduser("~/.oci/config")
@@ -77,6 +95,51 @@ class Settings(BaseSettings):
     GENAI_ENABLE_BATCHING: bool = True
     GENAI_BATCH_SIZE: int = 5
     GENAI_FALLBACK_MODEL: str = "mixtral-8x7b-32768"
+    
+    # Optional Enhancement Features
+    
+    # Prometheus Metrics
+    PROMETHEUS_ENABLED: bool = True
+    PROMETHEUS_URL: str = "http://localhost:9090"
+    
+    # Grafana Integration
+    GRAFANA_ENABLED: bool = False
+    GRAFANA_URL: str = "http://localhost:3000"
+    GRAFANA_API_KEY: str = ""
+    GRAFANA_USERNAME: str = "admin"
+    GRAFANA_PASSWORD: str = "admin"
+    
+    # Notification Service
+    NOTIFICATIONS_ENABLED: bool = True
+    
+    # Email Notifications
+    EMAIL_ENABLED: bool = False
+    SMTP_SERVER: str = "localhost"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    SENDER_EMAIL: str = "noreply@genai-cloudops.com"
+    SENDER_NAME: str = "GenAI CloudOps Dashboard"
+    ADMIN_EMAIL: str = "admin@genai-cloudops.com"
+    DEVOPS_EMAIL: str = "devops@genai-cloudops.com"
+    BUSINESS_EMAIL: str = "business@genai-cloudops.com"
+    
+    # Slack Notifications
+    SLACK_ENABLED: bool = False
+    SLACK_BOT_TOKEN: str = ""
+    SLACK_WEBHOOK_URL: str = ""
+    SLACK_DEFAULT_CHANNEL: str = "#alerts"
+    ADMIN_SLACK_ID: str = ""
+    
+    # Auto-Remediation
+    AUTO_REMEDIATION_ENABLED: bool = False
+    AUTO_APPROVAL_ENABLED: bool = False
+    MAX_CONCURRENT_REMEDIATIONS: int = 3
+    REMEDIATION_DRY_RUN: bool = True
+    
+    # Dashboard URL for notifications
+    DASHBOARD_URL: str = "http://localhost:3000"
     
     class Config:
         env_file = ".env"

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer, cost_analyzer, websocket, vault
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer, cost_analyzer, websocket, vault, optional_enhancements, performance
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -19,6 +19,8 @@ api_router.include_router(access_analyzer.router, prefix="/access", tags=["acces
 api_router.include_router(cost_analyzer.router, prefix="/cost", tags=["cost-analyzer"])
 api_router.include_router(websocket.router, prefix="/ws", tags=["websocket-realtime"])
 api_router.include_router(vault.router, prefix="/vault", tags=["secrets-management"])
+api_router.include_router(performance.router, prefix="/performance", tags=["performance-monitoring"])
+api_router.include_router(optional_enhancements.router, tags=["optional-enhancements"])
 
 # Force reload timestamp
 import time
@@ -38,7 +40,12 @@ async def api_root():
             "role-based-access-control",
             "monitoring", 
             "api-gateway", 
-            "rate-limiting",
+            "advanced-rate-limiting",
+            "input-validation",
+            "security-hardening",
+            "performance-monitoring",
+            "response-compression",
+            "redis-caching",
             "cloud-operations",
             "kubernetes-integration",
             "async-microservices",
@@ -65,6 +72,7 @@ async def api_root():
             "k8s": "/k8s",
             "access": "/access",
             "cost": "/cost",
+            "performance": "/performance",
             "websocket": "/ws"
         },
         "microservices": {
@@ -77,6 +85,7 @@ async def api_root():
             "chatbot": "Advanced conversational agent with intent recognition and OCI integration",
             "remediation": "Automated infrastructure remediation with approval workflows",
             "access-analyzer": "Unified RBAC and IAM policy analysis with AI-powered security recommendations",
+            "performance": "Comprehensive performance monitoring, optimization, and health tracking",
             "websocket-realtime": "Real-time data streaming with WebSocket connections for live metrics, alerts, and status updates"
         }
     } 

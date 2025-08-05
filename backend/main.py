@@ -7,12 +7,13 @@ from app.core.config import settings
 from app.core.database import create_tables, init_default_roles
 from app.core.middleware import (
     LoggingMiddleware, 
-    SecurityHeadersMiddleware, 
-    RateLimitMiddleware, 
     ErrorHandlingMiddleware, 
     MonitoringMiddleware
 )
+from app.core.security_middleware import SecurityMiddleware
+from app.core.compression_middleware import CompressionMiddleware
 from app.services.realtime_service import start_realtime_streaming, stop_realtime_streaming
+from app.services.performance_service import performance_service
 from app.core.exceptions import (
     BaseCustomException,
     custom_exception_handler,
@@ -28,21 +29,29 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    print("🚀 Starting real-time streaming service...")
+    print("🚀 Starting application services...")
     try:
         # Start real-time streaming in background
         streaming_task = asyncio.create_task(start_realtime_streaming())
         print("✅ Real-time streaming service started")
+        
+        # Start performance monitoring
+        await performance_service.start_monitoring()
+        print("✅ Performance monitoring service started")
+        
         yield
     except Exception as e:
-        print(f"❌ Failed to start real-time streaming: {e}")
+        print(f"❌ Failed to start services: {e}")
         yield
     finally:
         # Shutdown
-        print("🛑 Shutting down real-time streaming service...")
+        print("🛑 Shutting down application services...")
         try:
             await stop_realtime_streaming()
             print("✅ Real-time streaming service stopped")
+            
+            await performance_service.stop_monitoring()
+            print("✅ Performance monitoring service stopped")
         except Exception as e:
             print(f"❌ Error during shutdown: {e}")
 
@@ -135,12 +144,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add other middleware
+# Add performance and security middleware (order matters - executed in reverse)
+if settings.COMPRESSION_ENABLED:
+    app.add_middleware(CompressionMiddleware)
+
+# Core middleware stack
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, calls=100, period=60)  # 100 requests per minute
 app.add_middleware(ErrorHandlingMiddleware)
 app.add_middleware(MonitoringMiddleware)
+
+# Security middleware (includes rate limiting, input validation, and security headers)
+if settings.SECURITY_MIDDLEWARE_ENABLED:
+    app.add_middleware(SecurityMiddleware)
 
 # Add exception handlers
 app.add_exception_handler(BaseCustomException, custom_exception_handler)
@@ -166,8 +181,9 @@ async def startup_event() -> None:
         print("API Gateway initialized (health checks disabled)")
         
         print("✅ GenAI CloudOps API started successfully")
-        print("📊 Features enabled: Authentication, RBAC, Rate Limiting, "
-              "Monitoring, API Gateway")
+        print("📊 Features enabled: Authentication, RBAC, Security Middleware, "
+              "Rate Limiting, Input Validation, Compression, Performance Monitoring, "
+              "API Gateway")
         
     except Exception as e:
         print(f"❌ Error during startup: {e}")
