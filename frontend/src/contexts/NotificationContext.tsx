@@ -69,11 +69,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Real-time OCI monitoring integration
+  // ✅ FIXED: Replaced aggressive polling with WebSocket integration
   useEffect(() => {
-    const fetchRealTimeNotifications = async () => {
+    // Load initial notifications without aggressive polling
+    const loadInitialNotifications = async () => {
       try {
-        // Get selected compartment from local storage or context
         const selectedCompartmentId = localStorage.getItem('selectedCompartmentId');
         if (!selectedCompartmentId) return;
 
@@ -86,30 +86,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         if (response.ok) {
           const realTimeNotifications = await response.json();
-          
-          // Add new notifications that we don't already have
-          const existingIds = new Set(notifications.map(n => n.id));
-          const newNotifications = realTimeNotifications.filter((n: any) => !existingIds.has(n.id));
-          
-          if (newNotifications.length > 0) {
-            setNotifications(prev => [...newNotifications, ...prev]);
-            console.log(`Added ${newNotifications.length} real-time notifications from OCI monitoring`);
-          }
+          setNotifications(realTimeNotifications);
         }
       } catch (error) {
-        console.warn('Failed to fetch real-time notifications:', error);
-        // Fail silently - don't disrupt user experience
+        console.warn('Failed to load initial notifications:', error);
       }
     };
 
-    // Fetch immediately
-    fetchRealTimeNotifications();
+    // Load initial data once
+    loadInitialNotifications();
 
-    // Set up polling every 2 minutes for real-time updates
-    const interval = setInterval(fetchRealTimeNotifications, 120000);
+    // ❌ REMOVED: Aggressive polling interval that was causing performance issues
+    // Real-time updates should come through WebSocket alerts instead
+    // This eliminates the 2-minute polling that was overloading the backend
 
-    return () => clearInterval(interval);
-  }, [notifications]); // Re-run when notifications change to avoid duplicates
+  }, []); // Empty dependency array - only run once on mount
 
   return (
     <NotificationContext.Provider

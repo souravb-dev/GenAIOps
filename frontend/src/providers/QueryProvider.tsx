@@ -25,10 +25,10 @@ const queryClient = new QueryClient({
       // Retry delay with exponential backoff
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       
-      // Refetch on window focus for real-time data
-      refetchOnWindowFocus: true,
+      // ✅ OPTIMIZED: Reduce unnecessary refetches to prevent API loops
+      refetchOnWindowFocus: false, // Disabled to prevent excessive API calls on tab switching
       
-      // Refetch on reconnect
+      // Refetch on reconnect (keep this for legitimate reconnections)
       refetchOnReconnect: true,
       
       // Don't refetch on mount if data exists and is fresh

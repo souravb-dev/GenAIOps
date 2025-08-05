@@ -268,28 +268,28 @@ export function MonitoringPage() {
     queryKey: ['health', selectedCompartmentId],
     queryFn: () => monitoringService.getHealthStatus(selectedCompartmentId),
     enabled: !!selectedCompartmentId,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['alert-summary', selectedCompartmentId],
     queryFn: () => monitoringService.getAlertSummary(selectedCompartmentId),
     enabled: !!selectedCompartmentId,
-    refetchInterval: 30000,
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   const { data: alarms, isLoading: alarmsLoading } = useQuery({
     queryKey: ['alarms', selectedCompartmentId],
     queryFn: () => monitoringService.getAlarms(selectedCompartmentId),
     enabled: !!selectedCompartmentId,
-    refetchInterval: 30000,
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ['dashboard', selectedCompartmentId],
     queryFn: () => monitoringService.getDashboard(selectedCompartmentId),
     enabled: !!selectedCompartmentId,
-    refetchInterval: 30000,
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   const isLoading = healthLoading || summaryLoading || alarmsLoading || dashboardLoading;

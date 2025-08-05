@@ -194,7 +194,7 @@ export function useOKEClusters(compartmentId: string): UseQueryResult<CloudResou
   });
 }
 
-// Get resource metrics
+// Get resource metrics (optimized - no aggressive polling)
 export function useResourceMetrics(
   resourceId: string, 
   resourceType: string
@@ -203,8 +203,27 @@ export function useResourceMetrics(
     queryKey: cloudQueryKeys.metrics(resourceId),
     queryFn: () => cloudApi.getResourceMetrics(resourceId, resourceType),
     enabled: !!resourceId && !!resourceType,
-    staleTime: 30 * 1000, // 30 seconds for metrics
-    refetchInterval: 60 * 1000, // Refetch every minute for real-time data
+    staleTime: 5 * 60 * 1000, // 5 minutes for metrics (longer cache)
+    // ❌ REMOVED: refetchInterval - use WebSocket for real-time updates instead
+    // Real-time metrics should come via WebSocket, not polling
+  });
+}
+
+// ✅ NEW: Optional manual refresh version for components that need it
+export function useResourceMetricsWithRefresh(
+  resourceId: string, 
+  resourceType: string,
+  enableAutoRefresh: boolean = false
+): UseQueryResult<ResourceMetrics, Error> {
+  return useQuery({
+    queryKey: [...cloudQueryKeys.metrics(resourceId), 'manual-refresh'],
+    queryFn: () => cloudApi.getResourceMetrics(resourceId, resourceType),
+    enabled: !!resourceId && !!resourceType,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    // Only enable interval if explicitly requested and using smart intervals
+    ...(enableAutoRefresh && {
+      refetchInterval: 5 * 60 * 1000, // Much longer interval: 5 minutes instead of 1 minute
+    }),
   });
 }
 

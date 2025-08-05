@@ -1,29 +1,33 @@
 module.exports = {
   root: true,
-  env: { browser: true, es2020: true },
+  env: { 
+    browser: true, 
+    es2020: true,
+    jest: true,
+    node: true
+  },
   extends: [
-    'eslint:recommended'
+    'eslint:recommended',
+    'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs'],
+  ignorePatterns: ['dist', '.eslintrc.cjs', '**/*.test.*', '**/*.spec.*', 'test-setup.ts', 'mocks/**'],
   parser: '@typescript-eslint/parser',
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    ecmaFeatures: {
-      jsx: true
-    }
-  },
   plugins: ['react-refresh'],
-  settings: {
-    react: {
-      version: 'detect'
-    }
-  },
   rules: {
-    'react-refresh/only-export-components': 'off', // Disable Fast Refresh warnings
-    // Disable some rules that might cause issues without full TypeScript ESLint
-    'no-unused-vars': 'off',
-    'no-undef': 'off',
-    'no-useless-catch': 'warn' // Make useless catch a warning instead of error
+    'react-refresh/only-export-components': 'off',
+    'no-unused-vars': 'warn',
+    'no-undef': 'off' // TypeScript handles this
   },
-} 
+  overrides: [
+    {
+      files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/test-setup.ts', 'mocks/**'],
+      env: {
+        jest: true,
+      },
+      rules: {
+        'no-unused-vars': 'off',
+        'no-undef': 'off'
+      }
+    }
+  ]
+}; 

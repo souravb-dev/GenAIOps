@@ -91,8 +91,8 @@ export function AlertsPage() {
     queryKey: ['alert-summary', selectedCompartment],
     queryFn: () => monitoringService.getAlertSummary(selectedCompartment),
     enabled: !!selectedCompartment,
-    refetchInterval: 30000, // Real-time refresh every 30 seconds
-    refetchIntervalInBackground: true
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
+    // Use manual refresh button instead
   });
 
   // Fetch detailed alerts
@@ -100,8 +100,7 @@ export function AlertsPage() {
     queryKey: ['alerts', selectedCompartment],
     queryFn: () => monitoringService.getAlarms(selectedCompartment),
     enabled: !!selectedCompartment,
-    refetchInterval: 30000, // Real-time refresh every 30 seconds
-    refetchIntervalInBackground: true
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   // Fetch alert history for timeline
@@ -109,8 +108,7 @@ export function AlertsPage() {
     queryKey: ['alert-history', selectedCompartment, filters.timeRange],
     queryFn: () => monitoringService.getAlarmHistory(selectedCompartment),
     enabled: !!selectedCompartment,
-    refetchInterval: 30000, // Real-time refresh every 30 seconds
-    refetchIntervalInBackground: true
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   // NEW: Fetch production-grade AI insights
@@ -138,8 +136,7 @@ export function AlertsPage() {
       }
     },
     enabled: !!selectedCompartment && alerts && alerts.length > 0,
-    refetchInterval: 30000, // Real-time refresh every 30 seconds
-    refetchIntervalInBackground: true
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   // Mutation for acknowledging alerts

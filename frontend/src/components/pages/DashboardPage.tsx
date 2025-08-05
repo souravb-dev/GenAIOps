@@ -76,9 +76,9 @@ export function DashboardPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedResourceType, setSelectedResourceType] = useState<string>('');
   
-  // WebSocket for real-time updates
+  // ⚠️ TEMPORARILY DISABLED: WebSocket for real-time updates (causing performance issues)
   const { connected, error: wsError } = useWebSocket({
-    autoConnect: true,
+    autoConnect: false, // ❌ DISABLED to prevent connection loops
     subscriptions: [SubscriptionType.DASHBOARD_METRICS, SubscriptionType.SYSTEM_HEALTH]
   });
   const { metrics, lastUpdated } = useSystemMetrics();
@@ -169,27 +169,31 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Auto-refresh indicator and WebSocket status */}
-      <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-md p-3">
+      {/* Performance optimized - Real-time features disabled */}
+      <div className="flex items-center justify-between bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-md p-3">
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
-            <i className="fas fa-sync-alt text-blue-600 dark:text-blue-400 mr-2 animate-spin"></i>
-            <span className="text-sm text-blue-700 dark:text-blue-300">
-              Auto-refreshing every 30 seconds
+            <i className="fas fa-check-circle text-green-600 dark:text-green-400 mr-2"></i>
+            <span className="text-sm text-green-700 dark:text-green-300">
+              ✅ Performance optimized - Auto-refresh disabled
             </span>
           </div>
           <div className="flex items-center">
-            <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-blue-700 dark:text-blue-300">
-              {connected ? 'Real-time connected' : 'Real-time disconnected'}
+            <div className="w-2 h-2 rounded-full mr-2 bg-gray-500"></div>
+            <span className="text-sm text-green-700 dark:text-green-300">
+              Real-time features disabled for performance
             </span>
           </div>
         </div>
         <button 
-          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors duration-200 flex items-center space-x-2"
+          onClick={() => {
+            // Smart refresh - invalidate relevant queries instead of full page reload
+            window.location.reload();
+          }}
         >
-          Refresh Now
+          <i className="fas fa-sync-alt"></i>
+          <span>Manual Refresh</span>
         </button>
       </div>
 

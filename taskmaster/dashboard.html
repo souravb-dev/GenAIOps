@@ -76,7 +76,7 @@
             </div>
             <div class="bg-gray-800 rounded-lg p-6 card-hover">
                 <div class="text-center">
-                    <div class="text-3xl font-bold text-green-400" id="completedTasks">16</div>
+                    <div class="text-3xl font-bold text-green-400" id="completedTasks">26</div>
                     <div class="text-gray-400 text-sm">Completed</div>
                 </div>
             </div>
@@ -88,7 +88,7 @@
             </div>
             <div class="bg-gray-800 rounded-lg p-6 card-hover">
                 <div class="text-center">
-                    <div class="text-3xl font-bold text-red-400" id="pendingTasks">14</div>
+                    <div class="text-3xl font-bold text-red-400" id="pendingTasks">4</div>
                     <div class="text-gray-400 text-sm">Pending</div>
                 </div>
             </div>
@@ -98,16 +98,16 @@
         <div class="bg-gray-800 rounded-lg p-6 mb-8">
             <h3 class="text-lg font-semibold mb-4">Overall Progress</h3>
             <div class="bg-gray-700 rounded-full h-4 mb-4">
-                <div class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full progress-bar-fill" style="width: 53%"></div>
+                <div class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full progress-bar-fill" style="width: 87%"></div>
             </div>
             <div class="flex justify-between text-sm text-gray-400">
                 <span>Project Started</span>
-                <span class="text-blue-400 font-semibold">53% Complete</span>
+                <span class="text-blue-400 font-semibold">87% Complete</span>
                 <span>Q2 2025 Target</span>
             </div>
             <div class="mt-4 text-center">
                 <span class="bg-green-900 text-green-400 px-3 py-1 rounded-full text-sm">
-                    <i class="fas fa-check mr-1"></i>Tasks 19-22 Complete - Cost Analysis, Real-time Updates & Full Containerization Live!
+                    <i class="fas fa-check mr-1"></i>Tasks 1-26 Complete - Infrastructure Automation Ready! Advanced Terraform & OCI Scripts Deployed!
                 </span>
             </div>
         </div>
@@ -262,16 +262,33 @@
                     <span class="line-through text-gray-500">Task-022: Create Containerization and Docker Setup</span>
                 </li>
                 <li class="flex items-center">
+                    <i class="fas fa-check text-green-400 mr-2"></i>
+                    <span class="line-through text-gray-500">Task-023: Develop Helm Charts for OKE Deployment</span>
+                </li>
+                <li class="flex items-center">
+                    <i class="fas fa-check text-green-400 mr-2"></i>
+                    <span class="line-through text-gray-500">Task-024: Setup OCI Vault Integration for Secrets Management</span>
+                </li>
+                <li class="flex items-center">
+                    <i class="fas fa-check text-green-400 mr-2"></i>
+                    <span class="line-through text-gray-500">Task-025: Implement Comprehensive Testing Suite</span>
+                </li>
+                <li class="flex items-center">
+                    <i class="fas fa-check text-green-400 mr-2"></i>
+                    <span class="line-through text-gray-500">Task-026: Create Sample Terraform and OCI CLI Scripts</span>
+                </li>
+                <li class="flex items-center">
                     <i class="fas fa-arrow-right text-blue-400 mr-2"></i>
-                    ✅ Latest: Tasks 19-22 COMPLETED! 🎉<br>
-                        ✅ Cost Analyzer with OCI integration and AI recommendations<br>
-                        ✅ Real-time WebSocket updates for live monitoring<br>
-                        ✅ Full containerization with Docker and production deployment<br>
-                        🚀 Platform now production-ready with comprehensive cost analysis and real-time monitoring!
+                    ✅ Latest: Tasks 23-26 COMPLETED! 🎉<br>
+                        ✅ Helm Charts for Kubernetes deployment with OKE<br>
+                        ✅ OCI Vault integration for secure secrets management<br>
+                        ✅ Comprehensive testing suite with unit and integration tests<br>
+                        ✅ Infrastructure automation with Terraform modules and OCI CLI scripts<br>
+                        🚀 Platform now enterprise-ready with complete DevOps automation and security!
                 </li>
             </ul>
             <div class="mt-4 text-sm text-gray-400">
-                <span class="font-medium">Last Updated:</span> January 29, 2025 - TASKS 19-22 COMPLETED! Cost Analysis, Real-time Updates, and Full Containerization with Docker Production Deployment! 🚀
+                <span class="font-medium">Last Updated:</span> January 30, 2025 - TASKS 23-26 COMPLETED! Helm Charts, OCI Vault Integration, Comprehensive Testing, and Infrastructure Automation with Terraform & OCI CLI Scripts! 🚀
             </div>
         </div>
 
@@ -334,22 +351,21 @@
             { id: 'task-009', title: 'Create Alerts & Insights Page', status: 'Done', priority: 'High', dependencies: 'task-007, task-008, task-005' },
             { id: 'task-010', title: 'Implement Remediation Panel Backend', status: 'Done', priority: 'High', dependencies: 'task-008, task-004' },
             { id: 'task-011', title: 'Create Remediation Panel Frontend', status: 'Done', priority: 'High', dependencies: 'task-010, task-005' },
+            { id: 'task-012', title: 'Implement Conversational Agent (Chatbot) Backend', status: 'Done', priority: 'Medium', dependencies: 'task-008, task-004' },
+            { id: 'task-013', title: 'Create Conversational Agent (Chatbot) Frontend', status: 'Done', priority: 'Medium', dependencies: 'task-012, task-005' },
+            { id: 'task-014', title: 'Implement Kubernetes Client Integration', status: 'Done', priority: 'Medium', dependencies: 'task-003' },
+            { id: 'task-015', title: 'Develop Unified Access Analyzer Backend', status: 'Done', priority: 'Medium', dependencies: 'task-014, task-008, task-004' },
+            { id: 'task-016', title: 'Create Access Analyzer Frontend', status: 'Done', priority: 'Medium', dependencies: 'task-015, task-005' },
+            { id: 'task-017', title: 'Implement Pod Health & Log Analyzer Backend', status: 'Done', priority: 'Medium', dependencies: 'task-014, task-008' },
             { id: 'task-018', title: 'Create Pod Health & Log Analyzer Frontend', status: 'Done', priority: 'Medium', dependencies: 'task-017, task-005' },
-            { id: 'task-012', title: 'Implement Conversational Agent (Chatbot) Backend', status: 'To Do', priority: 'Medium', dependencies: 'task-008, task-004' },
-            { id: 'task-013', title: 'Create Conversational Agent (Chatbot) Frontend', status: 'To Do', priority: 'Medium', dependencies: 'task-012, task-005' },
-            { id: 'task-014', title: 'Implement Kubernetes Client Integration', status: 'To Do', priority: 'Medium', dependencies: 'task-003' },
-            { id: 'task-015', title: 'Develop Unified Access Analyzer Backend', status: 'To Do', priority: 'Medium', dependencies: 'task-014, task-008, task-004' },
-            { id: 'task-016', title: 'Create Access Analyzer Frontend', status: 'To Do', priority: 'Medium', dependencies: 'task-015, task-005' },
-            { id: 'task-017', title: 'Implement Pod Health & Log Analyzer Backend', status: 'To Do', priority: 'Medium', dependencies: 'task-014, task-008' },
-            { id: 'task-018', title: 'Create Pod Health & Log Analyzer Frontend', status: 'To Do', priority: 'Medium', dependencies: 'task-017, task-005' },
-            { id: 'task-019', title: 'Implement Cost Analyzer Backend', status: 'To Do', priority: 'Medium', dependencies: 'task-008, task-004' },
-            { id: 'task-020', title: 'Create Cost Analyzer Frontend', status: 'To Do', priority: 'Medium', dependencies: 'task-019, task-005' },
-            { id: 'task-021', title: 'Implement Real-time Data Updates', status: 'To Do', priority: 'Medium', dependencies: 'task-006, task-009, task-011' },
-            { id: 'task-022', title: 'Create Containerization and Docker Setup', status: 'To Do', priority: 'High', dependencies: 'task-003, task-005' },
-            { id: 'task-023', title: 'Develop Helm Charts for OKE Deployment', status: 'To Do', priority: 'High', dependencies: 'task-022' },
-            { id: 'task-024', title: 'Setup OCI Vault Integration for Secrets Management', status: 'To Do', priority: 'High', dependencies: 'task-004, task-023' },
-            { id: 'task-025', title: 'Implement Comprehensive Testing Suite', status: 'To Do', priority: 'Medium', dependencies: 'task-006, task-009, task-011, task-013, task-016, task-018, task-020' },
-            { id: 'task-026', title: 'Create Sample Terraform and OCI CLI Scripts', status: 'To Do', priority: 'Low', dependencies: 'task-010' },
+            { id: 'task-019', title: 'Implement Cost Analyzer Backend', status: 'Done', priority: 'Medium', dependencies: 'task-008, task-004' },
+            { id: 'task-020', title: 'Create Cost Analyzer Frontend', status: 'Done', priority: 'Medium', dependencies: 'task-019, task-005' },
+            { id: 'task-021', title: 'Implement Real-time Data Updates', status: 'Done', priority: 'Medium', dependencies: 'task-006, task-009, task-011' },
+            { id: 'task-022', title: 'Create Containerization and Docker Setup', status: 'Done', priority: 'High', dependencies: 'task-003, task-005' },
+            { id: 'task-023', title: 'Develop Helm Charts for OKE Deployment', status: 'Done', priority: 'High', dependencies: 'task-022' },
+            { id: 'task-024', title: 'Setup OCI Vault Integration for Secrets Management', status: 'Done', priority: 'High', dependencies: 'task-004, task-023' },
+            { id: 'task-025', title: 'Implement Comprehensive Testing Suite', status: 'Done', priority: 'Medium', dependencies: 'task-006, task-009, task-011, task-013, task-016, task-018, task-020' },
+            { id: 'task-026', title: 'Create Sample Terraform and OCI CLI Scripts', status: 'Done', priority: 'Low', dependencies: 'task-010' },
             { id: 'task-027', title: 'Develop GenAI Prompt Templates and Examples', status: 'To Do', priority: 'Low', dependencies: 'task-008' },
             { id: 'task-028', title: 'Implement Optional Enhancements', status: 'To Do', priority: 'Low', dependencies: 'task-021, task-011' },
             { id: 'task-029', title: 'Create Comprehensive Documentation and README', status: 'To Do', priority: 'Medium', dependencies: 'task-023, task-026, task-027' },
@@ -421,7 +437,7 @@
             // Animate progress bar
             setTimeout(() => {
                 const progressBar = document.querySelector('.progress-bar-fill');
-                progressBar.style.width = '30%';
+                progressBar.style.width = '87%';
             }, 500);
         });
 

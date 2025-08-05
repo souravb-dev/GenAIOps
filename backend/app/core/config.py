@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     OCI_FINGERPRINT: str = ""
     OCI_KEY_FILE: str = ""
     
+    # OCI Vault Configuration
+    OCI_VAULT_ENABLED: bool = True
+    OCI_COMPARTMENT_ID: str = ""  # Required for vault operations
+    OCI_VAULT_ID: str = ""  # Vault OCID for storing secrets
+    OCI_KMS_KEY_ID: str = ""  # KMS key OCID for encryption
+    OCI_USE_INSTANCE_PRINCIPAL: bool = False  # Use instance principal authentication in OKE
+    
+    # Vault Cache Configuration
+    VAULT_CACHE_TTL_MINUTES: int = 15  # Cache TTL for secrets
+    VAULT_ENABLE_CACHING: bool = True  # Enable secret caching
+    VAULT_MAX_CACHE_SIZE: int = 1000  # Maximum number of cached secrets
+    
     # Monitoring Configuration
     MONITORING_CACHE_TTL: int = 300  # 5 minutes cache for monitoring data
     ALERT_HISTORY_HOURS: int = 24  # Default hours of alert history to retrieve

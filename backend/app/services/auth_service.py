@@ -15,9 +15,70 @@ from app.core.security import (
 )
 from app.schemas.auth import UserCreate, UserLogin, Token
 from app.core.config import settings
+from .oci_vault_service import vault_service, get_jwt_secret
 
 class AuthService:
-    """Authentication service for user management and JWT tokens"""
+    """Authentication service for user management and JWT tokens with OCI Vault integration"""
+    
+    @staticmethod
+    async def get_jwt_secret_from_vault() -> str:
+        """Get JWT secret from OCI Vault or fallback to config"""
+        if settings.OCI_VAULT_ENABLED:
+            vault_secret = await get_jwt_secret()
+            if vault_secret:
+                return vault_secret
+        
+        # Fallback to config-based secret
+        return settings.SECRET_KEY
+    
+    @staticmethod
+    async def rotate_jwt_secret(new_secret: Optional[str] = None) -> bool:
+        """Rotate JWT secret in OCI Vault"""
+        if not settings.OCI_VAULT_ENABLED:
+            return False
+        
+        if not new_secret:
+            # Generate a new secure random secret
+            import secrets
+            new_secret = secrets.token_urlsafe(64)
+        
+        # Store new secret in vault
+        return await vault_service.rotate_secret('jwt_secret_key', new_secret)
+    
+    @staticmethod
+    async def store_api_key(service_name: str, api_key: str, description: str = "") -> bool:
+        """Store API key for a service in OCI Vault"""
+        if not settings.OCI_VAULT_ENABLED:
+            return False
+        
+        from .oci_vault_service import SecretType
+        return await vault_service.store_secret(
+            f'{service_name}_api_key',
+            api_key,
+            SecretType.API_KEY,
+            description or f"API key for {service_name} service",
+            tags={'service': service_name, 'type': 'api_key'}
+        )
+    
+    @staticmethod
+    async def get_api_key(service_name: str) -> Optional[str]:
+        """Get API key for a service from OCI Vault"""
+        if not settings.OCI_VAULT_ENABLED:
+            # Fallback to config-based API keys
+            if service_name.lower() == 'groq':
+                return settings.GROQ_API_KEY
+            return None
+        
+        from .oci_vault_service import get_api_key
+        return await get_api_key(service_name)
+    
+    @staticmethod
+    async def rotate_api_key(service_name: str, new_api_key: str) -> bool:
+        """Rotate API key for a service"""
+        if not settings.OCI_VAULT_ENABLED:
+            return False
+        
+        return await vault_service.rotate_secret(f'{service_name}_api_key', new_api_key)
     
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:

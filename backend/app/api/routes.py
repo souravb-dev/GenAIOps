@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer, cost_analyzer, websocket
+from app.api.endpoints import health, auth, monitoring, cloud, notifications, genai, remediation, chatbot, kubernetes, kubernetes_working, access_analyzer, cost_analyzer, websocket, vault
 from app.core.gateway import get_gateway
 
 api_router = APIRouter()
@@ -18,6 +18,7 @@ api_router.include_router(kubernetes_working.router, prefix="/k8s", tags=["kuber
 api_router.include_router(access_analyzer.router, prefix="/access", tags=["access-analyzer"])
 api_router.include_router(cost_analyzer.router, prefix="/cost", tags=["cost-analyzer"])
 api_router.include_router(websocket.router, prefix="/ws", tags=["websocket-realtime"])
+api_router.include_router(vault.router, prefix="/vault", tags=["secrets-management"])
 
 # Force reload timestamp
 import time

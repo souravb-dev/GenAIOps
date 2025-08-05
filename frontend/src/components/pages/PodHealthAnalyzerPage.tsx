@@ -52,7 +52,7 @@ const PodLogViewer: React.FC<{
       lines: logLines
     }),
     enabled: isOpen,
-    refetchInterval: USE_MOCK_DATA ? false : 5000 // Disable auto-refresh for mock data
+    // ❌ REMOVED: EXTREMELY aggressive 5-second polling causing severe performance issues
   });
 
   const { data: aiAnalysis, isLoading: aiLoading } = useQuery({
@@ -177,14 +177,14 @@ export function PodHealthAnalyzerPage() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['pod-status-summary', selectedNamespace],
     queryFn: () => k8sService.getPodStatusSummary(selectedNamespace || undefined),
-    refetchInterval: USE_MOCK_DATA ? false : 30000 // Disable auto-refresh for mock data
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   // Fetch detailed pods
   const { data: pods, isLoading: podsLoading } = useQuery({
     queryKey: ['pods', selectedNamespace],
     queryFn: () => k8sService.getPods(selectedNamespace || undefined),
-    refetchInterval: USE_MOCK_DATA ? false : 30000 // Disable auto-refresh for mock data
+    // ❌ REMOVED: Aggressive 30-second polling causing performance issues
   });
 
   // Restart pod mutation
